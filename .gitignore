@@ -1,0 +1,16 @@
+# Build results
+[Dd]ebug/
+[Rr]elease/
+x64/
+build/
+[Bb]in/
+[Oo]bj/
+.dep/
+
+# Directories
+Tests/
+evvgc-bl/
+EVVGC_V1.X_BL/
+
+# Documentation
+[Dd]ocs/
