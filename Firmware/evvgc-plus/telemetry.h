@@ -1,5 +1,5 @@
 /*
-    EvvGC-PLUS - Copyright (C) 2013-2014 Sarunas Vaitekonis
+    EvvGC-PLUS - Copyright (C) 2013-2015 Sarunas Vaitekonis
 
     Licensed under the Apache License, Version 2.0 (the "License");
     you may not use this file except in compliance with the License.
