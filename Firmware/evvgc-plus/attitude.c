@@ -42,13 +42,12 @@
 #define CALIBRATION_COUNTER_MAX   5000
 #define FIXED_DT_STEP             0.002f
 
-/* PID error limit: 10 mechanical degrees. */
-#define PID_ERROR_MAX             M_PI / 18.0f
-#define PID_ERROR_MIN             -PID_ERROR_MAX
 /* PID integral error limit: 1 mechanical degree per
    iteration or ~1.4 mechanical rotations per second. */
 #define PID_INTEGRAL_ERROR_MAX    M_PI / 180.0f
 #define PID_INTEGRAL_ERROR_MIN    -PID_INTEGRAL_ERROR_MAX
+
+#define STEP_LIMIT                M_PI / 6.0f
 
 #define INPUT_SIGNAL_ALPHA        200.0f
 #define MODE_FOLLOW_DEAD_BAND     M_PI / 36.0f
@@ -60,6 +59,7 @@ typedef struct tagPIDStruct {
   float D;
   float IAccum;
   float prevErr;
+  float prevCmd;
 } __attribute__((packed)) PIDStruct, *PPIDStruct;
 
 /**
@@ -129,7 +129,6 @@ static PIDStruct PID[3];
  * @return weighted sum of P, I and D actions.
  */
 static float pidControllerApply(uint8_t cmd_id, float err) {
-  err = constrain(err, PID_ERROR_MIN, PID_ERROR_MAX);
   float ierr = constrain(err, PID_INTEGRAL_ERROR_MIN, PID_INTEGRAL_ERROR_MAX);
   float poles2 = (float)(g_pwmOutput[cmd_id].num_poles >> 1);
   /* Convert mechanical error to electrical error: */
@@ -137,19 +136,33 @@ static float pidControllerApply(uint8_t cmd_id, float err) {
   ierr *= poles2;
   /* Update electrical offset of the motor: */
   PID[cmd_id].IAccum += ierr * PID[cmd_id].I;
-  /* Wind-up guard limits motor offset range to one electrical rotation [-2PI..0][0..2PI]: */
+  /* Wind-up guard limits motor offset range to one mechanical rotation: */
   if (PID[cmd_id].IAccum < 0.0f) {
-    PID[cmd_id].IAccum = fmodf(PID[cmd_id].IAccum - M_PI, -M_TWOPI) + M_PI;
+    PID[cmd_id].IAccum = fmodf(PID[cmd_id].IAccum - M_PI*poles2, -M_TWOPI*poles2) + M_PI*poles2;
   } else {
-    PID[cmd_id].IAccum = fmodf(PID[cmd_id].IAccum + M_PI,  M_TWOPI) - M_PI;
+    PID[cmd_id].IAccum = fmodf(PID[cmd_id].IAccum + M_PI*poles2,  M_TWOPI*poles2) - M_PI*poles2;
   }
   float diff = err - PID[cmd_id].prevErr;
   PID[cmd_id].prevErr = err;
-  /* TODO:
-     - add limit to 45 electrical degrees per iteration;
-     - add proper transition from -pi to pi and vice versa.
+  /* Calculate the real command value: */
+  float cmd = err*PID[cmd_id].P + PID[cmd_id].IAccum + diff*PID[cmd_id].D;
+  /* Convert command value to [-pi..pi] range by removing motor offset: */
+  if (cmd < 0.0f) {
+    cmd = fmodf(cmd - M_PI, -M_TWOPI) + M_PI;
+  } else {
+    cmd = fmodf(cmd + M_PI,  M_TWOPI) - M_PI;
+  }
+  /* Over-speeding guard:
+     - limit motor speed to STEP_LIMIT electrical degrees per iteration.
    */
-  return (err*PID[cmd_id].P + PID[cmd_id].IAccum + diff*PID[cmd_id].D);
+  diff = circadjust(PID[cmd_id].prevCmd - cmd, M_PI);
+  if (diff > STEP_LIMIT) {
+    cmd = circadjust(PID[cmd_id].prevCmd - STEP_LIMIT, M_PI);
+  } else if (diff < -STEP_LIMIT) {
+    cmd = circadjust(PID[cmd_id].prevCmd + STEP_LIMIT, M_PI);
+  }
+  PID[cmd_id].prevCmd = cmd;
+  return cmd;
 }
 
 /**
@@ -328,10 +341,9 @@ void attitudeUpdate(void) {
   Quaternion2RPY (g_qIMU, camAtti);
 
   // Calculate attitude error for PID controller to minimize;
-  // TODO: Add proper transition from -pi to pi and vice versa for pitch and yaw.
-  camErr[0] = camRot[0] - camAtti[0];
+  camErr[0] = circadjust(camRot[0] - camAtti[0], M_PI);
+  camErr[2] = circadjust(camRot[2] - camAtti[2], M_PI);
   camErr[1] = camRot[1] - camAtti[1];
-  camErr[2] = camRot[2] - camAtti[2];
 }
 
 /**

@@ -24,6 +24,7 @@
 #define DEG2RAD     ( M_PI / 180.0f )
 
 #define constrain(val,min,max)  ((val)<(min)?(min):((val)>(max)?(max):(val)))
+#define circadjust(val,lim)     ((val)<-(lim)?(val)+2*(lim):((val)>(lim)?(val)-2*(lim):(val)))
 
 #ifdef __cplusplus
 extern "C" {
