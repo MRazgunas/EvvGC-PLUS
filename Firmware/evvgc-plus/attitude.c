@@ -79,7 +79,7 @@ PIDSettings g_pidSettings[3] = {
 };
 
 /**
- * Default PID settings.
+ * Default input mode settings.
  */
 InputModeStruct g_modeSettings[3] = {
   {-60,               /* Min angle */
@@ -192,8 +192,19 @@ static void cameraRotationUpdate(void) {
     speedLimit = ((float)g_modeSettings[i].speed) * DEG2RAD;
 
     if (g_modeSettings[i].mode_id & INPUT_MODE_FOLLOW) {
-      /* Not implemented yet. */
-      coef = 0.0f;
+      /* Calculate offset of the gimbal: */
+      coef = g_modeSettings[i].offset * DEG2RAD - PID[i].IAccum / (g_pwmOutput[i].num_poles >> 1);
+      if (coef > MODE_FOLLOW_DEAD_BAND) {
+        coef -= MODE_FOLLOW_DEAD_BAND;
+        /* Convert to speed: */
+        coef /= INPUT_SIGNAL_ALPHA * FIXED_DT_STEP;
+      } else if (coef < -MODE_FOLLOW_DEAD_BAND) {
+        coef += MODE_FOLLOW_DEAD_BAND;
+        /* Convert to speed: */
+        coef /= INPUT_SIGNAL_ALPHA * FIXED_DT_STEP;
+      } else {
+        coef = 0.0f;
+      }
     } else if (g_mixedInput[i].channel_id == INPUT_CHANNEL_DISABLED) {
       camRot[i] = 0.0f;
       continue;
@@ -291,7 +302,7 @@ void attitudeUpdate(void) {
   // Account for accel's magnitude.
   mag = QInvSqrtf(g_accelData[0]*g_accelData[0] + g_accelData[1]*g_accelData[1] + g_accelData[2]*g_accelData[2]);
 
-  if ((mag > 0.0724) && (mag < 0.1724)) {
+  if ((mag > 0.0724f) && (mag < 0.1724f)) {
     float grot[3];
 
     // Rotate gravity to body frame and cross with accels.

@@ -394,6 +394,8 @@ static void pwmOutputDisableYaw(void) {
  */
 static void pwmOutputCmdTo3PhasePWM(float cmd, uint8_t power) {
   float halfPower = power * PWM_OUT_POWER_1PCT2;
+  // TODO: add compiler option to select ~14% more efficient motor
+  //       driving scheme based on third harmonic injection.
   pwm3PhaseDrv[0] = (1.0 + sinf(cmd)) * halfPower;
   pwm3PhaseDrv[1] = (1.0 + sinf(cmd + M_2PI_3)) * halfPower;
   pwm3PhaseDrv[2] = (1.0 + sinf(cmd - M_2PI_3)) * halfPower;

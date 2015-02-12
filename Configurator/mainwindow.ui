@@ -520,7 +520,7 @@
         <item row="1" column="6">
          <widget class="QLabel" name="labelInputMeas">
           <property name="text">
-           <string>Measured</string>
+           <string>Meas.</string>
           </property>
           <property name="alignment">
            <set>Qt::AlignCenter</set>
@@ -946,6 +946,34 @@
           </property>
           <property name="maximum">
            <number>180</number>
+          </property>
+         </widget>
+        </item>
+        <item row="1" column="6">
+         <widget class="QLabel" name="labelOffsetMeas">
+          <property name="text">
+           <string>Meas.</string>
+          </property>
+         </widget>
+        </item>
+        <item row="2" column="6">
+         <widget class="QLabel" name="labelOffsetPitch">
+          <property name="text">
+           <string>0</string>
+          </property>
+         </widget>
+        </item>
+        <item row="4" column="6">
+         <widget class="QLabel" name="labelOffsetRoll">
+          <property name="text">
+           <string>0</string>
+          </property>
+         </widget>
+        </item>
+        <item row="5" column="6">
+         <widget class="QLabel" name="labelOffsetYaw">
+          <property name="text">
+           <string>0</string>
           </property>
          </widget>
         </item>
