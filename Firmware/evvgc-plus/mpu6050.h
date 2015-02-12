@@ -53,6 +53,13 @@
 //#define MPU6050_ACCEL_SCALE             (GRAV /  4096.0f) //  8G
 //#define MPU6050_ACCEL_SCALE             (GRAV /  2048.0f) // 16G
 
+typedef struct tagSensorStruct {
+  uint8_t axis_id;
+  int8_t axis_dir;
+} __attribute__((packed)) SensorStruct, *PSensorStruct;
+
+/* Sensor settings. */
+extern SensorStruct g_sensorSettings[3];
 /* Scaled accelerometer data. */
 extern float g_accelData[3];
 /* Scaled gyroscope data. */
@@ -61,8 +68,9 @@ extern float g_gyroData[3];
 #ifdef __cplusplus
 extern "C" {
 #endif
-  inline uint8_t mpu6050Init(void);
-  inline uint8_t mpu6050GetNewData(void);
+  uint8_t mpu6050Init(void);
+  uint8_t mpu6050GetNewData(void);
+  void sensorSettingsUpdate(const PSensorStruct pNewSettings);
 #ifdef __cplusplus
 }
 #endif

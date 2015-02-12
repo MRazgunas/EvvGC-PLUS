@@ -21,6 +21,9 @@
  * and then begin reading process.
  */
 
+/* C libraries: */
+#include <string.h>
+
 #include "ch.h"
 #include "hal.h"
 
@@ -37,6 +40,13 @@
 /**
  * Global variables
  */
+/* Defalut sensor settings. */
+SensorStruct g_sensorSettings[3] = {
+/* ID, DIR */
+  {0,  1}, /* Pitch (X) */
+  {1, -1}, /* Roll  (Y) */
+  {2, -1}  /* Yaw   (Z) */
+};
 /* Scaled accelerometer data. */
 float g_accelData[3] = {0.0f};
 /* Scaled gyroscope data. */
@@ -116,6 +126,7 @@ uint8_t mpu6050Init(void) {
  */
 uint8_t mpu6050GetNewData(void) {
   msg_t status = RDY_OK;
+  uint8_t i;
 
   /* Set the start register address for bulk data transfer. */
   mpu6050TXData[0] = MPU6050_ACCEL_XOUT_H;
@@ -129,13 +140,39 @@ uint8_t mpu6050GetNewData(void) {
     return 0;
   }
 
-  g_accelData[0] = (     (int16_t)((mpu6050RXData[ 0]<<8) | mpu6050RXData[ 1]))*MPU6050_ACCEL_SCALE; /* Accel X */
-  g_accelData[1] = (-1 - (int16_t)((mpu6050RXData[ 2]<<8) | mpu6050RXData[ 3]))*MPU6050_ACCEL_SCALE; /* Accel Y */
-  g_accelData[2] = (-1 - (int16_t)((mpu6050RXData[ 4]<<8) | mpu6050RXData[ 5]))*MPU6050_ACCEL_SCALE; /* Accel Z */
+  i = g_sensorSettings[0].axis_id;
+  if (g_sensorSettings[0].axis_dir > 0) {
+    g_accelData[i] = ((int16_t)((mpu6050RXData[0]<<8) | mpu6050RXData[1]))*MPU6050_ACCEL_SCALE; /* Accel X */
+    g_gyroData[i]  = ((int16_t)((mpu6050RXData[8]<<8) | mpu6050RXData[9]))*MPU6050_GYRO_SCALE;  /* Gyro X  */
+  } else {
+    g_accelData[i] = (-1 - (int16_t)((mpu6050RXData[0]<<8) | mpu6050RXData[1]))*MPU6050_ACCEL_SCALE; /* Accel X */
+    g_gyroData[i]  = (-1 - (int16_t)((mpu6050RXData[8]<<8) | mpu6050RXData[9]))*MPU6050_GYRO_SCALE;  /* Gyro X  */
+  }
 
-  g_gyroData[0]  = (     (int16_t)((mpu6050RXData[ 8]<<8) | mpu6050RXData[ 9]))*MPU6050_GYRO_SCALE;  /* Gyro X  */
-  g_gyroData[1]  = (-1 - (int16_t)((mpu6050RXData[10]<<8) | mpu6050RXData[11]))*MPU6050_GYRO_SCALE;  /* Gyro Y  */
-  g_gyroData[2]  = (-1 - (int16_t)((mpu6050RXData[12]<<8) | mpu6050RXData[13]))*MPU6050_GYRO_SCALE;  /* Gyro Z  */
+  i = g_sensorSettings[1].axis_id;
+  if (g_sensorSettings[1].axis_dir > 0) {
+    g_accelData[i] = ((int16_t)((mpu6050RXData[ 2]<<8) | mpu6050RXData[ 3]))*MPU6050_ACCEL_SCALE; /* Accel Y */
+    g_gyroData[i]  = ((int16_t)((mpu6050RXData[10]<<8) | mpu6050RXData[11]))*MPU6050_GYRO_SCALE;  /* Gyro Y  */
+  } else {
+    g_accelData[i] = (-1 - (int16_t)((mpu6050RXData[ 2]<<8) | mpu6050RXData[ 3]))*MPU6050_ACCEL_SCALE; /* Accel Y */
+    g_gyroData[i]  = (-1 - (int16_t)((mpu6050RXData[10]<<8) | mpu6050RXData[11]))*MPU6050_GYRO_SCALE;  /* Gyro Y  */
+  }
+
+  i = g_sensorSettings[2].axis_id;
+  if (g_sensorSettings[2].axis_dir > 0) {
+    g_accelData[i] = ((int16_t)((mpu6050RXData[ 4]<<8) | mpu6050RXData[ 5]))*MPU6050_ACCEL_SCALE; /* Accel Z */
+    g_gyroData[i]  = ((int16_t)((mpu6050RXData[12]<<8) | mpu6050RXData[13]))*MPU6050_GYRO_SCALE;  /* Gyro Z  */
+  } else {
+    g_accelData[i] = (-1 - (int16_t)((mpu6050RXData[ 4]<<8) | mpu6050RXData[ 5]))*MPU6050_ACCEL_SCALE; /* Accel Z */
+    g_gyroData[i]  = (-1 - (int16_t)((mpu6050RXData[12]<<8) | mpu6050RXData[13]))*MPU6050_GYRO_SCALE;  /* Gyro Z  */
+  }
 
   return 1;
+}
+
+/**
+ * @brief
+ */
+void sensorSettingsUpdate(const PSensorStruct pNewSettings) {
+  memcpy((void *)&g_sensorSettings, (void *)pNewSettings, sizeof(g_sensorSettings));
 }

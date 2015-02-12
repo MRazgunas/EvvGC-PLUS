@@ -39,6 +39,7 @@ typedef struct tagEEPROMStruct {
   PWMOutputStruct pwmOutput[3];
   MixedInputStruct mixedInput[3];
   InputModeStruct modeSettings[3];
+  SensorStruct sensorSettings[3];
   uint32_t crc32;
 } __attribute__((packed)) EEPROMStruct, *PEEPROMStruct;
 
@@ -148,6 +149,7 @@ uint8_t eepromLoadSettings(void) {
     pwmOutputSettingsUpdate(eepromData.pwmOutput);
     mixedInputSettingsUpdate(eepromData.mixedInput);
     inputModeSettingsUpdate(eepromData.modeSettings);
+    sensorSettingsUpdate(eepromData.sensorSettings);
   }
   return 1;
 }
@@ -162,6 +164,7 @@ uint8_t eepromSaveSettings(void) {
   memcpy((void *)eepromData.pwmOutput, (void *)g_pwmOutput, sizeof(g_pwmOutput));
   memcpy((void *)eepromData.mixedInput, (void *)g_mixedInput, sizeof(g_mixedInput));
   memcpy((void *)eepromData.modeSettings, (void *)g_modeSettings, sizeof(g_modeSettings));
+  memcpy((void *)eepromData.sensorSettings, (void *)g_sensorSettings, sizeof(g_sensorSettings));
   eepromData.crc32 = crcCRC32((uint32_t *)&eepromData, sizeof(eepromData) / sizeof(uint32_t) - 1);
   fSkipContinue = 1;
   return eepromWriteData(EEPROM_START_ADDR, (uint8_t *)&eepromData, sizeof(eepromData));

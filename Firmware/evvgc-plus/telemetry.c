@@ -77,6 +77,11 @@ static void telemetrySendSerialData(const PDataHdr pHdr) {
  */
 static void telemetryProcessCommand(const PDataHdr pHdr) {
   switch (pHdr->cmd_id) {
+  case 'D': /* Reads new sensor settings; */
+    if ((pHdr->size == sizeof(g_sensorSettings)) && (pHdr->crc == telemetryGetCRC32Checksum(pHdr))) {
+      sensorSettingsUpdate((PSensorStruct)pHdr->data);
+    }
+    break;
   case 'I': /* Reads new mixed input settings; */
     if ((pHdr->size == sizeof(g_mixedInput)) && (pHdr->crc == telemetryGetCRC32Checksum(pHdr))) {
       mixedInputSettingsUpdate((PMixedInputStruct)pHdr->data);
@@ -114,6 +119,15 @@ static void telemetryProcessCommand(const PDataHdr pHdr) {
   case 'c': /* Saves settings to EEPROM; */
     if (eepromSaveSettings()) {
     }
+    break;
+  case 'd': /* Outputs sensor settings; */
+    /* Clean data buffer for zero-padded crc32 checksum calculation. */
+    memset((void *)dataBuf, 0, sizeof(dataBuf));
+    memcpy((void *)dataBuf, (void *)g_sensorSettings, sizeof(g_sensorSettings));
+    pHdr->size = sizeof(g_sensorSettings);
+    pHdr->data = dataBuf;
+    pHdr->crc  = telemetryGetCRC32Checksum(pHdr);
+    telemetrySendSerialData(pHdr);
     break;
   case 'i': /* Outputs input data values; */
     /* Clean data buffer for zero-padded crc32 checksum calculation. */
