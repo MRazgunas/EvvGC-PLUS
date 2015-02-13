@@ -59,6 +59,12 @@ typedef struct tagInputModeSettings
     quint8 mode_id;
 } __attribute__((packed)) InputModeSettings, *PInputModeSettings;
 
+typedef struct tagSensorSettings
+{
+    quint8 axis_id;
+    qint8 axis_dir;
+} __attribute__((packed)) SensorSettings, *PSensorSettings;
+
 namespace Ui {
 class MainWindow;
 }
@@ -94,6 +100,8 @@ private:
     bool SetInputSettings();
     bool GetInputModeSettings();
     bool SetInputModeSettings();
+    bool GetSensorSettings();
+    bool SetSensorSettings();
     void SendTelemetryData(const PDataHdr pHdr);
     quint32 GetCRC32Checksum(const PDataHdr pHdr);
 

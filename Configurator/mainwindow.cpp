@@ -40,6 +40,16 @@ static ListItem InputMode[3] = {
     {2, "Follow"},
 };
 
+static ListItem SensorAxis[6] = {
+/*  ID, Name */
+    {0, "+X"},
+    {1, "+Y"},
+    {2, "+Z"},
+    {3, "-X"},
+    {4, "-Y"},
+    {5, "-Z"},
+};
+
 static ListItem PlotData[1] = {
 /*  ID, Name */
     {0, "Attitude"}
@@ -101,6 +111,30 @@ static InputModeSettings modeSettings[3] = {
      0,     /* Offset */
      20,    /* Speed */
      0}     /* Mode ID */
+};
+
+static SensorSettings sensorSettings[3] = {
+/*  ID, DIR */
+    {0,  1}, /* Pitch (X) */
+    {1, -1}, /* Roll (Y)  */
+    {2, -1}  /* Yaw (Z)   */
+};
+
+static quint8 sensorAxes[3] = {
+    3, /* Right axis -X; */
+    4, /* Front axis -Y; */
+    2  /* Top axis   +Z; */
+};
+
+/* Axes mapping matrix. */
+static quint8 amMtx[6][6] = {
+//T:+X,+Y,+Z,-X,-Y,-Z  //R:
+    {6, 5, 1, 6, 2, 4},//+X;
+    {2, 6, 3, 5, 6, 0},//+Y;
+    {4, 0, 6, 1, 3, 6},//+Z;
+    {6, 2, 4, 6, 5, 1},//-X;
+    {5, 6, 0, 2, 6, 3},//-Y;
+    {1, 3, 6, 4, 0, 6},//-Z;
 };
 
 /**
@@ -205,6 +239,13 @@ MainWindow::MainWindow(QWidget *parent) :
     ui->comboInputModeRoll->setCurrentIndex(0);
     ui->comboInputModeYaw->setCurrentIndex(0);
 
+    for(int i = 0; i < 6; i++) {
+        ui->comboSensor1AxisTOP->addItem(SensorAxis[i].item_name, SensorAxis[i].item_id);
+        ui->comboSensor1AxisRIGHT->addItem(SensorAxis[i].item_name, SensorAxis[i].item_id);
+    }
+    ui->comboSensor1AxisTOP->setCurrentIndex(2);
+    ui->comboSensor1AxisRIGHT->setCurrentIndex(3);
+
     ui->comboData->addItem(PlotData[0].item_name, PlotData[0].item_id);
     ui->comboData->setCurrentIndex(0);
 
@@ -292,7 +333,6 @@ void MainWindow::HandleSerialConnection()
                 ui->actionHandleConnection->setText(tr("Disconnect"));
                 ui->actionRead->setEnabled(true);
                 ui->actionSet->setEnabled(true);
-                ui->actionSave->setEnabled(true);
                 cbDevList->setEnabled(false);
                 ui->statusBar->showMessage(tr("Connected to: %1").arg(cbDevList->currentText()));
                 fConnected = true;
@@ -358,6 +398,11 @@ void MainWindow::HandleReadSettings()
 
     /* Get input mode settings. */
     dataHdr.cmd_id = 'm';
+    dataHdr.size   = 0;
+    SendTelemetryData(&dataHdr);
+
+    /* Get sensor settings. */
+    dataHdr.cmd_id = 'd';
     dataHdr.size   = 0;
     SendTelemetryData(&dataHdr);
 }
@@ -453,6 +498,23 @@ void MainWindow::HandleApplySettings()
 
         SendTelemetryData(&dataHdr);
     }
+
+    if (GetSensorSettings()) {
+        /* Write sensor settings; */
+        qDebug() << "FRONT id:" << sensorSettings[0].axis_id << "dir:" << sensorSettings[0].axis_dir;
+        qDebug() << "RIGHT id:" << sensorSettings[1].axis_id << "dir:" << sensorSettings[1].axis_dir;
+        qDebug() << "TOP   id:" << sensorSettings[2].axis_id << "dir:" << sensorSettings[2].axis_dir;
+
+        /* Clean data buffer for zero-padded crc32 checksum calculation. */
+        memset((void *)dataBuf, 0, sizeof(dataBuf));
+        memcpy((void *)dataBuf, (void *)sensorSettings, sizeof(sensorSettings));
+        dataHdr.cmd_id = 'D';
+        dataHdr.size   = sizeof(sensorSettings);
+        dataHdr.data   = dataBuf;
+        dataHdr.crc    = GetCRC32Checksum(&dataHdr);
+
+        SendTelemetryData(&dataHdr);
+    }
 }
 
 /**
@@ -490,6 +552,11 @@ void MainWindow::ProcessTimeout()
 
     /* Get input values. */
     dataHdr.cmd_id = 'i';
+    dataHdr.size   = 0;
+    SendTelemetryData(&dataHdr);
+
+    /* Get offset values. */
+    dataHdr.cmd_id = 'h';
     dataHdr.size   = 0;
     SendTelemetryData(&dataHdr);
 
@@ -612,11 +679,34 @@ void MainWindow::ProcessSerialCommands(const PDataHdr pHdr)
     case 'b':
         if ((pHdr->size == sizeof(boardStatus)) && (pHdr->crc == GetCRC32Checksum(pHdr))) {
             boardStatus = *(pHdr->data);
-            qDebug() << "Board status:\r\n  EEPROM:" << ((boardStatus & 1) == 1) \
-                     << "\r\n  MPU6050:" << ((boardStatus & 2) == 2) \
-                     << "\r\n  EEPROM-C:" << ((boardStatus & 4) == 4);
+            /* Check if sensor detected. */
+            if (boardStatus & 1) {
+                ui->groupSensor1->setTitle("Sensor1 (MPU6050):");
+                ui->comboSensor1AxisTOP->setEnabled(true);
+                ui->comboSensor1AxisRIGHT->setEnabled(true);
+            } else {
+                ui->groupSensor1->setTitle("Sensor1 (none):");
+                ui->comboSensor1AxisTOP->setEnabled(false);
+                ui->comboSensor1AxisRIGHT->setEnabled(false);
+            }
+            /* Check if EEPROM detected. */
+            if (boardStatus & 2) {
+                ui->actionSave->setEnabled(true);
+            } else {
+                ui->actionSave->setEnabled(false);
+            }
+            qDebug() << "Board status:\r\n  MPU6050 detected:" << ((boardStatus & 1) == 1) \
+                     << "\r\n  EEPROM detected:" << ((boardStatus & 2) == 2);
         } else {
             qDebug() << "Board status CRC32 mismatch:" << hex << pHdr->crc << "|" << GetCRC32Checksum(pHdr);
+        }
+        break;
+    case 'd':
+        if ((pHdr->size == sizeof(sensorSettings)) && (pHdr->crc == GetCRC32Checksum(pHdr))) {
+            memcpy((void *)sensorSettings, (void *)pHdr->data, pHdr->size);
+            SetSensorSettings();
+        } else {
+            qDebug() << "Sensor settings CRC32 mismatch:" << hex << pHdr->crc << "|" << GetCRC32Checksum(pHdr);
         }
         break;
     case 'g':
@@ -624,6 +714,16 @@ void MainWindow::ProcessSerialCommands(const PDataHdr pHdr)
             pfloatBuf = (float *)(pHdr->data);
         } else {
             qDebug() << "Gyro CRC32 mismatch:" << hex << pHdr->crc << "|" << GetCRC32Checksum(pHdr);
+        }
+        break;
+    case 'h':
+        if ((pHdr->size == sizeof(float) * 3) && (pHdr->crc == GetCRC32Checksum(pHdr))) {
+            pfloatBuf = (float *)(pHdr->data);
+            ui->labelOffsetPitch->setText(tr("%1").arg(round(pfloatBuf[0]*RAD2DEG/7)));
+            ui->labelOffsetRoll->setText(tr("%1").arg(round(pfloatBuf[1]*RAD2DEG/7)));
+            ui->labelOffsetYaw->setText(tr("%1").arg(round(pfloatBuf[2]*RAD2DEG/7)));
+        } else {
+            qDebug() << "Motor offset CRC32 mismatch:" << hex << pHdr->crc << "|" << GetCRC32Checksum(pHdr);
         }
         break;
     case 'i':
@@ -1163,5 +1263,104 @@ bool MainWindow::SetInputModeSettings()
     ui->spinInputMaxAngleYaw->setValue(modeSettings[2].max_angle);
     ui->spinInputSpeedYaw->setValue(modeSettings[2].speed);
     ui->spinInputOffsetYaw->setValue(modeSettings[2].offset);
+    return true;
+}
+
+/**
+ * @brief MainWindow::GetSensorSettings
+ * @return
+ */
+bool MainWindow::GetSensorSettings()
+{
+    bool fUpdated = false;
+    quint16 temp;
+
+    /* TOP axis */
+    temp = ui->comboSensor1AxisTOP->currentIndex();
+    if (temp != sensorAxes[2]) {
+        sensorAxes[2] = (quint8)temp;
+        fUpdated = true;
+    }
+    /* RIGHT axis */
+    temp = ui->comboSensor1AxisRIGHT->currentIndex();
+    if (temp != sensorAxes[0]) {
+        sensorAxes[0] = (quint8)temp;
+        fUpdated = true;
+    }
+    /* FRONT axis */
+    if (fUpdated) {
+        sensorAxes[1] = amMtx[sensorAxes[0]][sensorAxes[2]];
+        if (sensorAxes[1] == 6) {
+            QMessageBox::critical(this, tr("Axes error"),
+                "Top and right axes of the sensor cannot be the same!");
+            return false;
+        }
+    }
+
+    for (quint8 i = 0; i < 3; i++) {
+        switch (sensorAxes[i]) {
+        case 0: // +X;
+            sensorSettings[i].axis_id = 0;
+            sensorSettings[i].axis_dir = -1;
+            break;
+        case 1: // +Y;
+            sensorSettings[i].axis_id = 1;
+            sensorSettings[i].axis_dir = 1;
+            break;
+        case 2: // +Z;
+            sensorSettings[i].axis_id = 2;
+            sensorSettings[i].axis_dir = -1;
+            break;
+        case 3: // -X;
+            sensorSettings[i].axis_id = 0;
+            sensorSettings[i].axis_dir = 1;
+            break;
+        case 4: // -Y;
+            sensorSettings[i].axis_id = 1;
+            sensorSettings[i].axis_dir = -1;
+            break;
+        case 5: // -Z;
+            sensorSettings[i].axis_id = 2;
+            sensorSettings[i].axis_dir = 1;
+            break;
+        }
+    }
+
+    return fUpdated;
+}
+
+/**
+ * @brief MainWindow::SetSensorSettings
+ * @return
+ */
+bool MainWindow::SetSensorSettings()
+{
+    for (quint8 i = 0; i < 3; i++) {
+        switch (sensorSettings[i].axis_id) {
+        case 0: // X;
+            if (sensorSettings[i].axis_dir > 0) {
+                sensorAxes[i] = 3;
+            } else {
+                sensorAxes[i] = 0;
+            }
+            break;
+        case 1: // Y;
+            if (sensorSettings[i].axis_dir > 0) {
+                sensorAxes[i] = 1;
+            } else {
+                sensorAxes[i] = 4;
+            }
+            break;
+        case 2: // Z;
+            if (sensorSettings[i].axis_dir > 0) {
+                sensorAxes[i] = 5;
+            } else {
+                sensorAxes[i] = 2;
+            }
+            break;
+        }
+    }
+    ui->comboSensor1AxisTOP->setCurrentIndex(sensorAxes[2]);
+    ui->comboSensor1AxisRIGHT->setCurrentIndex(sensorAxes[0]);
     return true;
 }

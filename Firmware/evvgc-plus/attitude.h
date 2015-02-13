@@ -36,8 +36,7 @@ typedef struct tagInputModeStruct {
 } __attribute__((packed)) InputModeStruct, *PInputModeStruct;
 
 extern float g_qIMU[4];
-extern float g_gyroData[3];
-extern float g_accelData[3];
+extern float g_motorOffset[3];
 extern PIDSettings g_pidSettings[3];
 extern InputModeStruct g_modeSettings[3];
 

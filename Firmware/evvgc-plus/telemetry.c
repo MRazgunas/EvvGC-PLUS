@@ -129,18 +129,25 @@ static void telemetryProcessCommand(const PDataHdr pHdr) {
     pHdr->crc  = telemetryGetCRC32Checksum(pHdr);
     telemetrySendSerialData(pHdr);
     break;
+  case 'g': /* Outputs gyroscope data; */
+    memcpy((void *)dataBuf, (void *)g_gyroData, sizeof(g_gyroData));
+    pHdr->size = sizeof(g_gyroData);
+    pHdr->data = dataBuf;
+    pHdr->crc  = telemetryGetCRC32Checksum(pHdr);
+    telemetrySendSerialData(pHdr);
+    break;
+  case 'h': /* Outputs motor offset data; */
+    memcpy((void *)dataBuf, (void *)g_motorOffset, sizeof(g_motorOffset));
+    pHdr->size = sizeof(g_motorOffset);
+    pHdr->data = dataBuf;
+    pHdr->crc  = telemetryGetCRC32Checksum(pHdr);
+    telemetrySendSerialData(pHdr);
+    break;
   case 'i': /* Outputs input data values; */
     /* Clean data buffer for zero-padded crc32 checksum calculation. */
     memset((void *)dataBuf, 0, sizeof(dataBuf));
     memcpy((void *)dataBuf, (void *)g_inputValues, sizeof(g_inputValues));
     pHdr->size = sizeof(g_inputValues);
-    pHdr->data = dataBuf;
-    pHdr->crc  = telemetryGetCRC32Checksum(pHdr);
-    telemetrySendSerialData(pHdr);
-    break;
-  case 'g': /* Outputs gyroscope data; */
-    memcpy((void *)dataBuf, (void *)g_gyroData, sizeof(g_gyroData));
-    pHdr->size = sizeof(g_gyroData);
     pHdr->data = dataBuf;
     pHdr->crc  = telemetryGetCRC32Checksum(pHdr);
     telemetrySendSerialData(pHdr);

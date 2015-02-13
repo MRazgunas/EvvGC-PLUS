@@ -40,7 +40,7 @@
 /**
  * Global variables
  */
-/* Defalut sensor settings. */
+/* Default sensor settings. */
 SensorStruct g_sensorSettings[3] = {
 /* ID, DIR */
   {0,  1}, /* Pitch (X) */

@@ -28,6 +28,9 @@
 /* Telemetry operation time out in milliseconds. */
 #define TELEMETRY_SLEEP_MS      20
 
+#define MPU6050_LOW_DETECTED    0x01
+#define EEPROM_24C02_DETECTED   0x02
+
 uint32_t g_boardStatus = 0;
 
 /* I2C2 configuration for I2C driver 2 */
@@ -138,12 +141,12 @@ int main(void) {
 
   /* Loads settings from external EEPROM chip. */
   if (eepromLoadSettings()) {
-    g_boardStatus |= 1;
+    g_boardStatus |= EEPROM_24C02_DETECTED;
   }
 
   /* Initializes the MPU6050 sensor. */
   if (mpu6050Init()) {
-    g_boardStatus |= 2;
+    g_boardStatus |= MPU6050_LOW_DETECTED;
 
     /* Creates a taken binary semaphore. */
     chBSemInit(&bsemNewDataReady, TRUE);
@@ -170,7 +173,6 @@ int main(void) {
     g_chnp = serusbcfg.usbp->state == USB_ACTIVE ? (BaseChannel *)&SDU1 : (BaseChannel *)&SD4;
     telemetryReadSerialData();
     if (eepromIsDataLeft()) {
-      g_boardStatus |= 4;
       eepromContinueSaving();  
     }
     chThdSleepMilliseconds(TELEMETRY_SLEEP_MS);

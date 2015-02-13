@@ -57,7 +57,6 @@ typedef struct tagPIDStruct {
   float P;
   float I;
   float D;
-  float IAccum;
   float prevErr;
   float prevCmd;
 } __attribute__((packed)) PIDStruct, *PPIDStruct;
@@ -67,6 +66,8 @@ typedef struct tagPIDStruct {
  */
 /* Attitude quaternion of the IMU. */
 float g_qIMU[4] = {1.0f, 0.0f, 0.0f, 0.0f};
+/* Electrical offset of the motors. */
+float g_motorOffset[3] = {0.0f};
 
 /**
  * Default PID settings.
@@ -135,17 +136,17 @@ static float pidControllerApply(uint8_t cmd_id, float err) {
   err *= poles2;
   ierr *= poles2;
   /* Update electrical offset of the motor: */
-  PID[cmd_id].IAccum += ierr * PID[cmd_id].I;
+  g_motorOffset[cmd_id] += ierr * PID[cmd_id].I;
   /* Wind-up guard limits motor offset range to one mechanical rotation: */
-  if (PID[cmd_id].IAccum < 0.0f) {
-    PID[cmd_id].IAccum = fmodf(PID[cmd_id].IAccum - M_PI*poles2, -M_TWOPI*poles2) + M_PI*poles2;
+  if (g_motorOffset[cmd_id] < 0.0f) {
+    g_motorOffset[cmd_id] = fmodf(g_motorOffset[cmd_id] - M_PI*poles2, -M_TWOPI*poles2) + M_PI*poles2;
   } else {
-    PID[cmd_id].IAccum = fmodf(PID[cmd_id].IAccum + M_PI*poles2,  M_TWOPI*poles2) - M_PI*poles2;
+    g_motorOffset[cmd_id] = fmodf(g_motorOffset[cmd_id] + M_PI*poles2,  M_TWOPI*poles2) - M_PI*poles2;
   }
   float diff = err - PID[cmd_id].prevErr;
   PID[cmd_id].prevErr = err;
   /* Calculate the real command value: */
-  float cmd = err*PID[cmd_id].P + PID[cmd_id].IAccum + diff*PID[cmd_id].D;
+  float cmd = err*PID[cmd_id].P + g_motorOffset[cmd_id] + diff*PID[cmd_id].D;
   /* Convert command value to [-pi..pi] range by removing motor offset: */
   if (cmd < 0.0f) {
     cmd = fmodf(cmd - M_PI, -M_TWOPI) + M_PI;
@@ -175,7 +176,7 @@ static void pidUpdateStruct(void) {
     PID[i].I = (float)g_pidSettings[i].I*0.01f;
     PID[i].D = (float)g_pidSettings[i].D*1.0f;
     if (!g_pidSettings[i].I) {
-      PID[i].IAccum = 0.0f;
+      g_motorOffset[i] = 0.0f;
     }
   }
 }
@@ -193,7 +194,7 @@ static void cameraRotationUpdate(void) {
 
     if (g_modeSettings[i].mode_id & INPUT_MODE_FOLLOW) {
       /* Calculate offset of the gimbal: */
-      coef = g_modeSettings[i].offset * DEG2RAD - PID[i].IAccum / (g_pwmOutput[i].num_poles >> 1);
+      coef = g_modeSettings[i].offset * DEG2RAD - g_motorOffset[i] / (g_pwmOutput[i].num_poles >> 1);
       if (coef > MODE_FOLLOW_DEAD_BAND) {
         coef -= MODE_FOLLOW_DEAD_BAND;
         /* Convert to speed: */
@@ -232,6 +233,7 @@ static void cameraRotationUpdate(void) {
     }
     coef = constrain(coef, -speedLimit, speedLimit);
     camRot[i] += coef * FIXED_DT_STEP;
+    camRot[i] = circadjust(camRot[i], M_PI);
   }
 }
 
