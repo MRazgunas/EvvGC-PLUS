@@ -200,6 +200,8 @@ MainWindow::MainWindow(QWidget *parent) :
     connect(serial, SIGNAL(readyRead()), this, SLOT(ReadSerialData()));
     connect(serial, SIGNAL(error(QSerialPort::SerialPortError)), this,
             SLOT(HandleSerialError(QSerialPort::SerialPortError)));
+    connect(ui->pushSensor1AccCalibrate, SIGNAL(clicked()), this, SLOT(HandleAccCalibrate()));
+    connect(ui->pushSensor1GyroCalibrate, SIGNAL(clicked()), this, SLOT(HandleGyroCalibrate()));
 
     FillPortsInfo();
 
@@ -655,6 +657,22 @@ void MainWindow::HandleDataZClicked()
     ui->plotData->graph(2)->setVisible(ui->checkDataZ->isChecked());
 }
 
+void MainWindow::HandleAccCalibrate()
+{
+    /* Start accel calibration. */
+    dataHdr.cmd_id = ']';
+    dataHdr.size   = 0;
+    SendTelemetryData(&dataHdr);
+}
+
+void MainWindow::HandleGyroCalibrate()
+{
+    /* Start gyro calibration. */
+    dataHdr.cmd_id = '[';
+    dataHdr.size   = 0;
+    SendTelemetryData(&dataHdr);
+}
+
 /**
  * @brief MainWindow::ProcessSerialCommands
  * @param pHdr
@@ -684,10 +702,14 @@ void MainWindow::ProcessSerialCommands(const PDataHdr pHdr)
                 ui->groupSensor1->setTitle("Sensor1 (MPU6050):");
                 ui->comboSensor1AxisTOP->setEnabled(true);
                 ui->comboSensor1AxisRIGHT->setEnabled(true);
+                ui->pushSensor1AccCalibrate->setEnabled(true);
+                ui->pushSensor1GyroCalibrate->setEnabled(true);
             } else {
                 ui->groupSensor1->setTitle("Sensor1 (none):");
                 ui->comboSensor1AxisTOP->setEnabled(false);
                 ui->comboSensor1AxisRIGHT->setEnabled(false);
+                ui->pushSensor1AccCalibrate->setEnabled(false);
+                ui->pushSensor1GyroCalibrate->setEnabled(false);
             }
             /* Check if EEPROM detected. */
             if (boardStatus & 2) {

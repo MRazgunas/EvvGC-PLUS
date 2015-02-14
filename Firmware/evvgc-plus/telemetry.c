@@ -193,6 +193,12 @@ static void telemetryProcessCommand(const PDataHdr pHdr) {
     pHdr->crc  = telemetryGetCRC32Checksum(pHdr);
     telemetrySendSerialData(pHdr);
     break;
+  case '[': /* Calibrate gyroscope. */
+    calibrationStart(SENSOR_GYROSCOPE);
+    break;
+  case ']': /* Calibrate accelerometer. */
+    calibrationStart(SENSOR_ACCELEROMETER);
+    break;
   default:;
   }
 }

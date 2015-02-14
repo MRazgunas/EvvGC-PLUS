@@ -32,6 +32,7 @@
 #define EEPROM_24C02_DETECTED   0x02
 
 uint32_t g_boardStatus = 0;
+uint8_t g_fCalibrating = 0;
 
 /* I2C2 configuration for I2C driver 2 */
 static const I2CConfig i2cfg_d2 = {
@@ -53,7 +54,12 @@ static WORKING_AREA(waBlinkerThread, 64);
 static msg_t BlinkerThread(void *arg) {
   (void)arg;
   while (TRUE) {
-    systime_t time = serusbcfg.usbp->state == USB_ACTIVE ? 250 : 500;
+    systime_t time;
+    if (g_fCalibrating) {
+      time = 100;
+    } else {
+      time = serusbcfg.usbp->state == USB_ACTIVE ? 250 : 500;
+    }
     palTogglePad(GPIOB, GPIOB_LED_RED);
     chThdSleepMilliseconds(time);
   }

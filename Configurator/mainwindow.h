@@ -88,6 +88,8 @@ private slots:
     void HandleDataXClicked();
     void HandleDataYClicked();
     void HandleDataZClicked();
+    void HandleAccCalibrate();
+    void HandleGyroCalibrate();
 
 private:
     void FillPortsInfo();

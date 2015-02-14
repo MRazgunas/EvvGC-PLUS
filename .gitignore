@@ -8,7 +8,7 @@ build/
 .dep/
 
 # Directories
-Tests/
+[Tt]ests/
 evvgc-bl/
 EVVGC_V1.X_BL/
 

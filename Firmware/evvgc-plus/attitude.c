@@ -47,8 +47,9 @@
 #define PID_INTEGRAL_ERROR_MAX    M_PI / 180.0f
 #define PID_INTEGRAL_ERROR_MIN    -PID_INTEGRAL_ERROR_MAX
 
-#define STEP_LIMIT                M_PI / 6.0f
+#define MOTOR_STEP_LIMIT          M_PI / 6.0f
 
+#define ACCEL_TAU                 0.1f
 #define INPUT_SIGNAL_ALPHA        200.0f
 #define MODE_FOLLOW_DEAD_BAND     M_PI / 36.0f
 
@@ -68,6 +69,8 @@ typedef struct tagPIDStruct {
 float g_qIMU[4] = {1.0f, 0.0f, 0.0f, 0.0f};
 /* Electrical offset of the motors. */
 float g_motorOffset[3] = {0.0f};
+/* Accelerometer 1-point calibration values. */
+float g_accelBias[3] = {0.0f};
 
 /**
  * Default PID settings.
@@ -109,12 +112,17 @@ static float camErr[3] = {0.0f};
 static float camRotSpeedPrev[3] = {0.0f};
 
 static float gyroBias[3] = {0.0f};
-static float accelBias[3] = {0.0f};
 
 static float accelKp = 0.02f;
 static float accelKi = 0.0002;
 
-/* Calibration related variables */
+/* Accelerometer filter variables. */
+static uint8_t fAccelFilterEnabled = 1;
+static float accel_alpha = 0.0f;
+static float accelFiltered[3] = {0.0f};
+static float grotFiltered[3] = {0.0f};
+
+/* Calibration related variables: */
 static uint8_t fCalibrateAccel = 0;
 static uint8_t fCalibrateGyro = 1;
 static uint16_t counter = 0;
@@ -122,6 +130,8 @@ static float accum[3] = {0.0f};
 
 /* PID controller parameters. */
 static PIDStruct PID[3];
+
+extern uint8_t g_fCalibrating;
 
 /**
  * @brief  Implements basic PID stabilization.
@@ -154,13 +164,13 @@ static float pidControllerApply(uint8_t cmd_id, float err) {
     cmd = fmodf(cmd + M_PI,  M_TWOPI) - M_PI;
   }
   /* Over-speeding guard:
-     - limit motor speed to STEP_LIMIT electrical degrees per iteration.
+     - limit motor speed to MOTOR_STEP_LIMIT electrical degrees per iteration.
    */
   diff = circadjust(PID[cmd_id].prevCmd - cmd, M_PI);
-  if (diff > STEP_LIMIT) {
-    cmd = circadjust(PID[cmd_id].prevCmd - STEP_LIMIT, M_PI);
-  } else if (diff < -STEP_LIMIT) {
-    cmd = circadjust(PID[cmd_id].prevCmd + STEP_LIMIT, M_PI);
+  if (diff > MOTOR_STEP_LIMIT) {
+    cmd = circadjust(PID[cmd_id].prevCmd - MOTOR_STEP_LIMIT, M_PI);
+  } else if (diff < -MOTOR_STEP_LIMIT) {
+    cmd = circadjust(PID[cmd_id].prevCmd + MOTOR_STEP_LIMIT, M_PI);
   }
   PID[cmd_id].prevCmd = cmd;
   return cmd;
@@ -240,9 +250,23 @@ static void cameraRotationUpdate(void) {
 /**
  * @brief
  */
+static void accelFilterApply(const float *raw, float *filtered) {
+  if (fAccelFilterEnabled) {
+    filtered[0] = (filtered[0] - raw[0])*accel_alpha + raw[0];
+    filtered[1] = (filtered[1] - raw[1])*accel_alpha + raw[1];
+    filtered[2] = (filtered[2] - raw[2])*accel_alpha + raw[2];
+  } else {
+    memcpy((void *)filtered, (void *)raw, sizeof(float)*3);
+  }
+}
+
+/**
+ * @brief
+ */
 void attitudeInit(void) {
   memset((void *)PID, 0, sizeof(PID));
   pidUpdateStruct();
+  accel_alpha = expf(-FIXED_DT_STEP / ACCEL_TAU);
 }
 
 /**
@@ -255,6 +279,7 @@ void attitudeUpdate(void) {
 
   if (fCalibrateGyro) {
     if (counter++ < CALIBRATION_COUNTER_MAX) {
+      g_fCalibrating = 1;
       accum[0] += g_gyroData[0];
       accum[1] += g_gyroData[1];
       accum[2] += g_gyroData[2];
@@ -270,19 +295,21 @@ void attitudeUpdate(void) {
       accum[2] = 0.0f;
 
       fCalibrateGyro = 0;
+      g_fCalibrating = 0;
     }
   }
 
   if (fCalibrateAccel) {
     if (counter++ < CALIBRATION_COUNTER_MAX) {
+      g_fCalibrating = 1;
       accum[0] += g_accelData[0];
       accum[1] += g_accelData[1];
       accum[2] += g_accelData[2] + GRAV;
       return;
     } else {
-      accelBias[0] = accum[0] / CALIBRATION_COUNTER_MAX;
-      accelBias[1] = accum[1] / CALIBRATION_COUNTER_MAX;
-      accelBias[2] = accum[2] / CALIBRATION_COUNTER_MAX;
+      g_accelBias[0] = accum[0] / CALIBRATION_COUNTER_MAX;
+      g_accelBias[1] = accum[1] / CALIBRATION_COUNTER_MAX;
+      g_accelBias[2] = accum[2] / CALIBRATION_COUNTER_MAX;
 
       counter = 0;
       accum[0] = 0.0f;
@@ -290,12 +317,13 @@ void attitudeUpdate(void) {
       accum[2] = 0.0f;
 
       fCalibrateAccel = 0;
+      g_fCalibrating = 0;
     }
   }
 
-  g_accelData[0] -= accelBias[0];
-  g_accelData[1] -= accelBias[1];
-  g_accelData[2] -= accelBias[2];
+  g_accelData[0] -= g_accelBias[0];
+  g_accelData[1] -= g_accelBias[1];
+  g_accelData[2] -= g_accelBias[2];
 
   g_gyroData[0] -= gyroBias[0];
   g_gyroData[1] -= gyroBias[1];
@@ -312,8 +340,12 @@ void attitudeUpdate(void) {
     grot[1] = -(2.0f*(g_qIMU[2]*g_qIMU[3] + g_qIMU[0]*g_qIMU[1]));
     grot[2] =  (2.0f*(g_qIMU[1]*g_qIMU[1] + g_qIMU[2]*g_qIMU[2])) - 1.0f;
 
+    // Apply smoothing to accel values, to reduce vibration noise before main calculations.
+    accelFilterApply(g_accelData, accelFiltered);
+    // Apply the same filtering to the rotated attitude to match phase shift.
+    accelFilterApply(grot, grotFiltered);
     // Compute the error between the predicted direction of gravity and smoothed acceleration.
-    CrossProduct(g_accelData, grot, accelErr);
+    CrossProduct(accelFiltered, grotFiltered, accelErr);
 
     // Normalize accel_error.
     accelErr[0] *= mag;
@@ -397,4 +429,25 @@ void pidSettingsUpdate(const PPIDSettings pNewSettings) {
  */
 void inputModeSettingsUpdate(const PInputModeStruct pNewSettings) {
   memcpy((void *)&g_modeSettings, (void *)pNewSettings, sizeof(g_modeSettings));
+}
+
+/**
+ * @brief
+ */
+void accelBiasUpdate(const float *pNewSettings) {
+  memcpy((void *)g_accelBias, (void *)pNewSettings, sizeof(g_accelBias));
+}
+
+/**
+ * @brief
+ */
+void calibrationStart(uint8_t sensor) {
+  switch (sensor) {
+  case SENSOR_GYROSCOPE:
+    fCalibrateGyro = TRUE;
+    break;
+  case SENSOR_ACCELEROMETER:
+    fCalibrateAccel = TRUE;
+    break;
+  }
 }
