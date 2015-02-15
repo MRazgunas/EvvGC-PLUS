@@ -17,7 +17,7 @@
    </size>
   </property>
   <property name="windowTitle">
-   <string>EvvGC-PLUS Configurator v0.1</string>
+   <string>EvvGC-PLUS Configurator v0.1.0-alpha</string>
   </property>
   <widget class="QWidget" name="centralWidget">
    <layout class="QVBoxLayout" name="verticalLayout">

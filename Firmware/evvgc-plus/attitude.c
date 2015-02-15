@@ -117,14 +117,14 @@ static float accelKp = 0.02f;
 static float accelKi = 0.0002;
 
 /* Accelerometer filter variables. */
-static uint8_t fAccelFilterEnabled = 1;
+static uint8_t fAccelFilterEnabled = TRUE;
 static float accel_alpha = 0.0f;
 static float accelFiltered[3] = {0.0f};
 static float grotFiltered[3] = {0.0f};
 
 /* Calibration related variables: */
-static uint8_t fCalibrateAccel = 0;
-static uint8_t fCalibrateGyro = 1;
+static uint8_t fCalibrateAccel = FALSE;
+static uint8_t fCalibrateGyro = TRUE;
 static uint16_t counter = 0;
 static float accum[3] = {0.0f};
 
@@ -229,7 +229,6 @@ static void cameraRotationUpdate(void) {
         coef *= speedLimit * 2.0f;
         camRotSpeedPrev[i] += (coef - camRotSpeedPrev[i]) / INPUT_SIGNAL_ALPHA;
         coef = camRotSpeedPrev[i];
-        // TODO: calculate speed limitations based on attitude constrains;
       } else { /* INPUT_MODE_ANGLE */
         /* Calculate angle from input data: */
         coef *= (g_modeSettings[i].max_angle - g_modeSettings[i].min_angle);
@@ -267,6 +266,7 @@ void attitudeInit(void) {
   memset((void *)PID, 0, sizeof(PID));
   pidUpdateStruct();
   accel_alpha = expf(-FIXED_DT_STEP / ACCEL_TAU);
+  g_fCalibrating = TRUE;
 }
 
 /**
@@ -279,7 +279,6 @@ void attitudeUpdate(void) {
 
   if (fCalibrateGyro) {
     if (counter++ < CALIBRATION_COUNTER_MAX) {
-      g_fCalibrating = 1;
       accum[0] += g_gyroData[0];
       accum[1] += g_gyroData[1];
       accum[2] += g_gyroData[2];
@@ -294,14 +293,13 @@ void attitudeUpdate(void) {
       accum[1] = 0.0f;
       accum[2] = 0.0f;
 
-      fCalibrateGyro = 0;
-      g_fCalibrating = 0;
+      fCalibrateGyro = FALSE;
+      g_fCalibrating = FALSE;
     }
   }
 
   if (fCalibrateAccel) {
     if (counter++ < CALIBRATION_COUNTER_MAX) {
-      g_fCalibrating = 1;
       accum[0] += g_accelData[0];
       accum[1] += g_accelData[1];
       accum[2] += g_accelData[2] + GRAV;
@@ -316,8 +314,8 @@ void attitudeUpdate(void) {
       accum[1] = 0.0f;
       accum[2] = 0.0f;
 
-      fCalibrateAccel = 0;
-      g_fCalibrating = 0;
+      fCalibrateAccel = FALSE;
+      g_fCalibrating = FALSE;
     }
   }
 
@@ -445,9 +443,11 @@ void calibrationStart(uint8_t sensor) {
   switch (sensor) {
   case SENSOR_GYROSCOPE:
     fCalibrateGyro = TRUE;
+    g_fCalibrating = TRUE;
     break;
   case SENSOR_ACCELEROMETER:
     fCalibrateAccel = TRUE;
+    g_fCalibrating = TRUE;
     break;
   }
 }

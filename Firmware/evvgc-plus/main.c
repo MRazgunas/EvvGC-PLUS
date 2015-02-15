@@ -32,7 +32,7 @@
 #define EEPROM_24C02_DETECTED   0x02
 
 uint32_t g_boardStatus = 0;
-uint8_t g_fCalibrating = 0;
+uint8_t g_fCalibrating = FALSE;
 
 /* I2C2 configuration for I2C driver 2 */
 static const I2CConfig i2cfg_d2 = {
