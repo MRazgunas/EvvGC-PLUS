@@ -110,7 +110,7 @@ static size_t readt(void *ip, uint8_t *bp, size_t n, systime_t time) {
 
 static size_t space(void *ip) {
 
-  return chQSpaceI(&((SerialDriver *)ip)->iqueue);
+  return chQSpaceI(&((SerialUSBDriver *)ip)->iqueue);
 }
 
 static const struct SerialUSBDriverVMT vmt = {
