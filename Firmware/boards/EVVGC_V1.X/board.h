@@ -42,8 +42,6 @@
  * IO pins assignments.
  */
 #define GPIOA_USB_DP            12
-#define GPIOB_I2C2_SCL          10
-#define GPIOB_I2C2_SDA          11
 #define GPIOB_LED_RED           12
 
 
@@ -101,8 +99,8 @@
  * PB7  - Alternate Push Pull output (TIM4 CH2).
  * PB8  - Alternate Push Pull output (TIM4 CH3).
  * PB9  - Alternate Push Pull output (TIM4 CH4).
- * PB10 - Alternate Open Drain output (SCL)
- * PB11 - Alternate Open Drain output (SDA)
+ * PB10 - Alternate Open Drain output (SCL).
+ * PB11 - Alternate Open Drain output (SDA).
  * PB12 - Push Pull output (LED).
  * PB13 - Alternate Push Pull output (TIM1 CH1N).
  * PB14 - Alternate Push Pull output (TIM1 CH2N).
@@ -120,8 +118,8 @@
  * PC6  - Alternate Push Pull output (TIM8 CH1).
  * PC7  - Alternate Push Pull output (TIM8 CH2).
  * PC8  - Alternate Push Pull output (TIM8 CH3).
- * PC10 - Alternate Push Pull output (UART4 TX)
- * PC11 - Normal Input (UART4 RX)
+ * PC10 - Alternate Push Pull output (UART4 TX).
+ * PC11 - Normal Input (UART4 RX).
  */
 #define VAL_GPIOCCRL            0xAA880088      /*  PC7...PC0 */
 #define VAL_GPIOCCRH            0x88884A8A      /* PC15...PC8 */
