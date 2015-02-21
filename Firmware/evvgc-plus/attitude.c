@@ -71,6 +71,8 @@ float g_qIMU[4] = {1.0f, 0.0f, 0.0f, 0.0f};
 float g_motorOffset[3] = {0.0f};
 /* Accelerometer 1-point calibration values. */
 float g_accelBias[3] = {0.0f};
+/*Gyroscope calibration values*/
+float g_gyroBias[3] = {0.0f};
 
 /**
  * Default PID settings.
@@ -110,8 +112,6 @@ static float camAtti[3] = {0.0f};
 static float camRot[3] = {0.0f};
 static float camErr[3] = {0.0f};
 static float camRotSpeedPrev[3] = {0.0f};
-
-static float gyroBias[3] = {0.0f};
 
 static float accelKp = 0.02f;
 static float accelKi = 0.0002;
@@ -284,9 +284,9 @@ void attitudeUpdate(void) {
       accum[2] += g_gyroData[2];
       return;
     } else {
-      gyroBias[0] = accum[0] / CALIBRATION_COUNTER_MAX;
-      gyroBias[1] = accum[1] / CALIBRATION_COUNTER_MAX;
-      gyroBias[2] = accum[2] / CALIBRATION_COUNTER_MAX;
+      g_gyroBias[0] = accum[0] / CALIBRATION_COUNTER_MAX;
+      g_gyroBias[1] = accum[1] / CALIBRATION_COUNTER_MAX;
+      g_gyroBias[2] = accum[2] / CALIBRATION_COUNTER_MAX;
 
       counter = 0;
       accum[0] = 0.0f;
@@ -323,9 +323,9 @@ void attitudeUpdate(void) {
   g_accelData[1] -= g_accelBias[1];
   g_accelData[2] -= g_accelBias[2];
 
-  g_gyroData[0] -= gyroBias[0];
-  g_gyroData[1] -= gyroBias[1];
-  g_gyroData[2] -= gyroBias[2];
+  g_gyroData[0] -= g_gyroBias[0];
+  g_gyroData[1] -= g_gyroBias[1];
+  g_gyroData[2] -= g_gyroBias[2];
 
   // Account for accel's magnitude.
   mag = QInvSqrtf(g_accelData[0]*g_accelData[0] + g_accelData[1]*g_accelData[1] + g_accelData[2]*g_accelData[2]);
@@ -357,9 +357,9 @@ void attitudeUpdate(void) {
   g_gyroData[2] += accelErr[2]*(accelKp / FIXED_DT_STEP);
 
   // Correct rates based on error.
-  gyroBias[0] -= accelErr[0]*accelKi;
-  gyroBias[1] -= accelErr[1]*accelKi;
-  gyroBias[2] -= accelErr[2]*accelKi;
+  g_gyroBias[0] -= accelErr[0]*accelKi;
+  g_gyroBias[1] -= accelErr[1]*accelKi;
+  g_gyroBias[2] -= accelErr[2]*accelKi;
 
   dq[0] = (-g_qIMU[1]*g_gyroData[0] - g_qIMU[2]*g_gyroData[1] - g_qIMU[3]*g_gyroData[2])*(FIXED_DT_STEP*DEG2RAD*0.5f);
   dq[1] = ( g_qIMU[0]*g_gyroData[0] - g_qIMU[3]*g_gyroData[1] + g_qIMU[2]*g_gyroData[2])*(FIXED_DT_STEP*DEG2RAD*0.5f);
@@ -434,6 +434,13 @@ void inputModeSettingsUpdate(const PInputModeStruct pNewSettings) {
  */
 void accelBiasUpdate(const float *pNewSettings) {
   memcpy((void *)g_accelBias, (void *)pNewSettings, sizeof(g_accelBias));
+}
+
+/**
+ * @brief
+ */
+void gyroBiasUpdate(const float *pNewSettings) {
+	memcpy((void *)g_gyroBias, (void *)pNewSettings, sizeof(g_gyroBias));
 }
 
 /**
