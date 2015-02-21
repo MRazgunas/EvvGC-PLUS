@@ -41,6 +41,7 @@ typedef struct tagInputModeStruct {
 extern float g_qIMU[4];
 extern float g_motorOffset[3];
 extern float g_accelBias[3];
+extern float g_gyroBias[3];
 extern PIDSettings g_pidSettings[3];
 extern InputModeStruct g_modeSettings[3];
 
@@ -53,6 +54,7 @@ extern "C" {
   void pidSettingsUpdate(const PPIDSettings pNewSettings);
   void inputModeSettingsUpdate(const PInputModeStruct pNewSettings);
   void accelBiasUpdate(const float *pNewSettings);
+  void gyroBiasUpdate(const float *pNewSettings);
   void calibrationStart(uint8_t sensor);
 #ifdef __cplusplus
 }
