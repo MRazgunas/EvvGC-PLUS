@@ -14,3 +14,11 @@ EVVGC_V1.X_BL/
 
 # Documentation
 [Dd]ocs/
+
+#Visual studio project files
+*.opensdf
+*.sdf
+*.vcxproj
+*.filters
+*.suo
+*.sln
