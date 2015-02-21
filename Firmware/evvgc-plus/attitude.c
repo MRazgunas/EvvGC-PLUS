@@ -71,7 +71,7 @@ float g_qIMU[4] = {1.0f, 0.0f, 0.0f, 0.0f};
 float g_motorOffset[3] = {0.0f};
 /* Accelerometer 1-point calibration values. */
 float g_accelBias[3] = {0.0f};
-/*Gyroscope calibration values*/
+/* Gyroscope calibration values. */
 float g_gyroBias[3] = {0.0f};
 
 /**
@@ -381,7 +381,7 @@ void attitudeUpdate(void) {
   cameraRotationUpdate();
 
   // Convert attitude into Euler degrees;
-  Quaternion2RPY (g_qIMU, camAtti);
+  Quaternion2RPY(g_qIMU, camAtti);
 
   // Calculate attitude error for PID controller to minimize;
   camErr[0] = circadjust(camRot[0] - camAtti[0], M_PI);

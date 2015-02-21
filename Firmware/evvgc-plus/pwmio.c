@@ -22,6 +22,15 @@
 #include <string.h>
 
 /**
+ * Compiler directives
+ */
+/* Uncomment this line to activate third harmonic injection PWM.
+ * This technique increases motor driving efficiency by almost 14%.
+ * Disabled by default.
+ */
+//#define USE_THI_PWM
+
+/**
  * DeadTime range (us) = (0..127) * 1 / 72;
  */
 #define BDTR_DTG_MUL1   0x00
@@ -76,6 +85,13 @@
 #ifndef M_2PI_3
 #define M_2PI_3         (2.0f * M_PI / 3.0f)
 #endif
+
+/**
+ * Amplitude scaling factor for third harmonic injection PWM.
+ */
+#ifdef USE_THI_PWM
+#define THI_PWM_K       (2.0f / sqrtf(3.0f))
+#endif /* USE_THI_PWM */
 
 /**
  * Local macros for dead time calculation.
@@ -393,12 +409,18 @@ static void pwmOutputDisableYaw(void) {
  * @return none.
  */
 static void pwmOutputCmdTo3PhasePWM(float cmd, uint8_t power) {
+#if defined(USE_THI_PWM)
+  float thirdHarmonic = sinf(cmd * 3.0f) / 6.0f;
+  float halfPower = THI_PWM_K * power * PWM_OUT_POWER_1PCT2;
+  pwm3PhaseDrv[0] = (1.0 + sinf(cmd) + thirdHarmonic) * halfPower;
+  pwm3PhaseDrv[1] = (1.0 + sinf(cmd + M_2PI_3) + thirdHarmonic) * halfPower;
+  pwm3PhaseDrv[2] = (1.0 + sinf(cmd - M_2PI_3) + thirdHarmonic) * halfPower;
+#else
   float halfPower = power * PWM_OUT_POWER_1PCT2;
-  // TODO: add compiler option to select ~14% more efficient motor
-  //       driving scheme based on third harmonic injection.
   pwm3PhaseDrv[0] = (1.0 + sinf(cmd)) * halfPower;
   pwm3PhaseDrv[1] = (1.0 + sinf(cmd + M_2PI_3)) * halfPower;
   pwm3PhaseDrv[2] = (1.0 + sinf(cmd - M_2PI_3)) * halfPower;
+#endif /* USE_THI_PWM */
 }
 
 /**
