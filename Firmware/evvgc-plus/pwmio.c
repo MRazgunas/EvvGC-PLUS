@@ -409,14 +409,13 @@ static void pwmOutputDisableYaw(void) {
  * @return none.
  */
 static void pwmOutputCmdTo3PhasePWM(float cmd, uint8_t power) {
+  float halfPower = power * PWM_OUT_POWER_1PCT2;
 #if defined(USE_THI_PWM)
   float thirdHarmonic = sinf(cmd * 3.0f) / 6.0f;
-  float halfPower = THI_PWM_K * power * PWM_OUT_POWER_1PCT2;
-  pwm3PhaseDrv[0] = (1.0 + sinf(cmd) + thirdHarmonic) * halfPower;
-  pwm3PhaseDrv[1] = (1.0 + sinf(cmd + M_2PI_3) + thirdHarmonic) * halfPower;
-  pwm3PhaseDrv[2] = (1.0 + sinf(cmd - M_2PI_3) + thirdHarmonic) * halfPower;
+  pwm3PhaseDrv[0] = (1.0 + (sinf(cmd) + thirdHarmonic) * THI_PWM_K) * halfPower;
+  pwm3PhaseDrv[1] = (1.0 + (sinf(cmd + M_2PI_3) + thirdHarmonic) * THI_PWM_K) * halfPower;
+  pwm3PhaseDrv[2] = (1.0 + (sinf(cmd - M_2PI_3) + thirdHarmonic) * THI_PWM_K) * halfPower;
 #else
-  float halfPower = power * PWM_OUT_POWER_1PCT2;
   pwm3PhaseDrv[0] = (1.0 + sinf(cmd)) * halfPower;
   pwm3PhaseDrv[1] = (1.0 + sinf(cmd + M_2PI_3)) * halfPower;
   pwm3PhaseDrv[2] = (1.0 + sinf(cmd - M_2PI_3)) * halfPower;
