@@ -10,6 +10,18 @@
 
 #include <math.h>
 
+/**
+ * I2C bus error conditions
+ */
+#define I2C_NO_ERROR            0x00 /* No error.               */
+#define I2C_BUS_ERROR           0x01 /* Bus Error.              */
+#define I2C_ARBITRATION_LOST    0x02 /* Arbitration Lost.       */
+#define I2C_ACK_FAILURE         0x04 /* Acknowledge Failure.    */
+#define I2C_OVERRUN             0x08 /* Overrun/Underrun.       */
+#define I2C_PEC_ERROR           0x10 /* PEC Error in reception. */
+#define I2C_TIMEOUT             0x20 /* Hardware timeout.       */
+#define I2C_SMB_ALERT           0x40 /* SMBus Alert.            */
+
 #define RAD2DEG ( 180.0f / M_PI )
 
 typedef struct tagDataHdr
@@ -19,12 +31,6 @@ typedef struct tagDataHdr
     const char *data;
     quint32 crc;
 } __attribute__((packed)) DataHdr, *PDataHdr;
-
-typedef struct tagListItem
-{
-    quint8 item_id;
-    const char item_name[12];
-} __attribute__((packed)) ListItem, *PListItem;
 
 typedef struct tagPIDSettings
 {
@@ -65,6 +71,12 @@ typedef struct tagSensorSettings
     qint8 axis_dir;
 } __attribute__((packed)) SensorSettings, *PSensorSettings;
 
+typedef struct tagI2CErrorStruct
+{
+    quint32 last_i2c_error;
+    quint32 i2c_error_counter;
+} __attribute__((packed)) I2CErrorStruct, *PI2CErrorStruct;
+
 namespace Ui {
 class MainWindow;
 }
@@ -93,7 +105,6 @@ private slots:
 
 private:
     void FillPortsInfo();
-    void ProcessSerialCommands(const PDataHdr pHdr);
     bool GetStabilizationSettings();
     bool SetStabilizationSettings();
     bool GetOutputSettings();
@@ -104,15 +115,15 @@ private:
     bool SetInputModeSettings();
     bool GetSensorSettings();
     bool SetSensorSettings();
+    void ProcessSerialCommands(const PDataHdr pHdr);
     void SendTelemetryData(const PDataHdr pHdr);
     quint32 GetCRC32Checksum(const PDataHdr pHdr);
 
 private:
     Ui::MainWindow *ui;
-    QComboBox *cbDevList;
-    QSerialPort *serial;
-    QLabel *lbI2CErrors;
-    QTimer timer;
+    QComboBox *m_SerialDeviceList;
+    QSerialPort m_serialPort;
+    QTimer m_timer;
     char dataBuf[32];
     bool fConnected;
     quint8 bytesRequired;

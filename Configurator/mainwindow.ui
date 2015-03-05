@@ -312,6 +312,26 @@
           <property name="maxVisibleItems">
            <number>4</number>
           </property>
+          <item>
+           <property name="text">
+            <string>Pitch</string>
+           </property>
+          </item>
+          <item>
+           <property name="text">
+            <string>Roll</string>
+           </property>
+          </item>
+          <item>
+           <property name="text">
+            <string>Yaw</string>
+           </property>
+          </item>
+          <item>
+           <property name="text">
+            <string>Disabled</string>
+           </property>
+          </item>
          </widget>
         </item>
         <item row="4" column="5">
@@ -322,6 +342,31 @@
             <verstretch>0</verstretch>
            </sizepolicy>
           </property>
+          <item>
+           <property name="text">
+            <string>1000 ns</string>
+           </property>
+          </item>
+          <item>
+           <property name="text">
+            <string>2000 ns</string>
+           </property>
+          </item>
+          <item>
+           <property name="text">
+            <string>3000 ns</string>
+           </property>
+          </item>
+          <item>
+           <property name="text">
+            <string>4000 ns</string>
+           </property>
+          </item>
+          <item>
+           <property name="text">
+            <string>5000 ns</string>
+           </property>
+          </item>
          </widget>
         </item>
         <item row="4" column="3">
@@ -387,6 +432,26 @@
           <property name="sizeAdjustPolicy">
            <enum>QComboBox::AdjustToContentsOnFirstShow</enum>
           </property>
+          <item>
+           <property name="text">
+            <string>Pitch</string>
+           </property>
+          </item>
+          <item>
+           <property name="text">
+            <string>Roll</string>
+           </property>
+          </item>
+          <item>
+           <property name="text">
+            <string>Yaw</string>
+           </property>
+          </item>
+          <item>
+           <property name="text">
+            <string>Disabled</string>
+           </property>
+          </item>
          </widget>
         </item>
         <item row="3" column="5">
@@ -397,6 +462,31 @@
             <verstretch>0</verstretch>
            </sizepolicy>
           </property>
+          <item>
+           <property name="text">
+            <string>1000 ns</string>
+           </property>
+          </item>
+          <item>
+           <property name="text">
+            <string>2000 ns</string>
+           </property>
+          </item>
+          <item>
+           <property name="text">
+            <string>3000 ns</string>
+           </property>
+          </item>
+          <item>
+           <property name="text">
+            <string>4000 ns</string>
+           </property>
+          </item>
+          <item>
+           <property name="text">
+            <string>5000 ns</string>
+           </property>
+          </item>
          </widget>
         </item>
         <item row="2" column="1">
@@ -446,6 +536,26 @@
           <property name="maxVisibleItems">
            <number>4</number>
           </property>
+          <item>
+           <property name="text">
+            <string>Pitch</string>
+           </property>
+          </item>
+          <item>
+           <property name="text">
+            <string>Roll</string>
+           </property>
+          </item>
+          <item>
+           <property name="text">
+            <string>Yaw</string>
+           </property>
+          </item>
+          <item>
+           <property name="text">
+            <string>Disabled</string>
+           </property>
+          </item>
          </widget>
         </item>
         <item row="2" column="5">
@@ -456,6 +566,31 @@
             <verstretch>0</verstretch>
            </sizepolicy>
           </property>
+          <item>
+           <property name="text">
+            <string>1000 ns</string>
+           </property>
+          </item>
+          <item>
+           <property name="text">
+            <string>2000 ns</string>
+           </property>
+          </item>
+          <item>
+           <property name="text">
+            <string>3000 ns</string>
+           </property>
+          </item>
+          <item>
+           <property name="text">
+            <string>4000 ns</string>
+           </property>
+          </item>
+          <item>
+           <property name="text">
+            <string>5000 ns</string>
+           </property>
+          </item>
          </widget>
         </item>
        </layout>
@@ -609,6 +744,36 @@
             <verstretch>0</verstretch>
            </sizepolicy>
           </property>
+          <item>
+           <property name="text">
+            <string>AUX1 analog</string>
+           </property>
+          </item>
+          <item>
+           <property name="text">
+            <string>AUX2 analog</string>
+           </property>
+          </item>
+          <item>
+           <property name="text">
+            <string>AUX3 PWM</string>
+           </property>
+          </item>
+          <item>
+           <property name="text">
+            <string>AUX4 PWM</string>
+           </property>
+          </item>
+          <item>
+           <property name="text">
+            <string>AUX5 PWM</string>
+           </property>
+          </item>
+          <item>
+           <property name="text">
+            <string>Disabled</string>
+           </property>
+          </item>
          </widget>
         </item>
         <item row="2" column="2">
@@ -619,6 +784,36 @@
             <verstretch>0</verstretch>
            </sizepolicy>
           </property>
+          <item>
+           <property name="text">
+            <string>AUX1 analog</string>
+           </property>
+          </item>
+          <item>
+           <property name="text">
+            <string>AUX2 analog</string>
+           </property>
+          </item>
+          <item>
+           <property name="text">
+            <string>AUX3 PWM</string>
+           </property>
+          </item>
+          <item>
+           <property name="text">
+            <string>AUX4 PWM</string>
+           </property>
+          </item>
+          <item>
+           <property name="text">
+            <string>AUX5 PWM</string>
+           </property>
+          </item>
+          <item>
+           <property name="text">
+            <string>Disabled</string>
+           </property>
+          </item>
          </widget>
         </item>
         <item row="2" column="3">
@@ -663,6 +858,36 @@
             <verstretch>0</verstretch>
            </sizepolicy>
           </property>
+          <item>
+           <property name="text">
+            <string>AUX1 analog</string>
+           </property>
+          </item>
+          <item>
+           <property name="text">
+            <string>AUX2 analog</string>
+           </property>
+          </item>
+          <item>
+           <property name="text">
+            <string>AUX3 PWM</string>
+           </property>
+          </item>
+          <item>
+           <property name="text">
+            <string>AUX4 PWM</string>
+           </property>
+          </item>
+          <item>
+           <property name="text">
+            <string>AUX5 PWM</string>
+           </property>
+          </item>
+          <item>
+           <property name="text">
+            <string>Disabled</string>
+           </property>
+          </item>
          </widget>
         </item>
         <item row="3" column="3">
@@ -843,6 +1068,21 @@
             <verstretch>0</verstretch>
            </sizepolicy>
           </property>
+          <item>
+           <property name="text">
+            <string>Angle</string>
+           </property>
+          </item>
+          <item>
+           <property name="text">
+            <string>Speed</string>
+           </property>
+          </item>
+          <item>
+           <property name="text">
+            <string>Follow</string>
+           </property>
+          </item>
          </widget>
         </item>
         <item row="1" column="4">
@@ -863,6 +1103,21 @@
             <verstretch>0</verstretch>
            </sizepolicy>
           </property>
+          <item>
+           <property name="text">
+            <string>Angle</string>
+           </property>
+          </item>
+          <item>
+           <property name="text">
+            <string>Speed</string>
+           </property>
+          </item>
+          <item>
+           <property name="text">
+            <string>Follow</string>
+           </property>
+          </item>
          </widget>
         </item>
         <item row="4" column="2">
@@ -900,6 +1155,21 @@
             <verstretch>0</verstretch>
            </sizepolicy>
           </property>
+          <item>
+           <property name="text">
+            <string>Angle</string>
+           </property>
+          </item>
+          <item>
+           <property name="text">
+            <string>Speed</string>
+           </property>
+          </item>
+          <item>
+           <property name="text">
+            <string>Follow</string>
+           </property>
+          </item>
          </widget>
         </item>
         <item row="2" column="2">
@@ -995,6 +1265,36 @@
              <property name="enabled">
               <bool>false</bool>
              </property>
+             <item>
+              <property name="text">
+               <string>+X</string>
+              </property>
+             </item>
+             <item>
+              <property name="text">
+               <string>+Y</string>
+              </property>
+             </item>
+             <item>
+              <property name="text">
+               <string>+Z</string>
+              </property>
+             </item>
+             <item>
+              <property name="text">
+               <string>-X</string>
+              </property>
+             </item>
+             <item>
+              <property name="text">
+               <string>-Y</string>
+              </property>
+             </item>
+             <item>
+              <property name="text">
+               <string>-Z</string>
+              </property>
+             </item>
             </widget>
            </item>
            <item row="1" column="1">
@@ -1002,6 +1302,36 @@
              <property name="enabled">
               <bool>false</bool>
              </property>
+             <item>
+              <property name="text">
+               <string>+X</string>
+              </property>
+             </item>
+             <item>
+              <property name="text">
+               <string>+Y</string>
+              </property>
+             </item>
+             <item>
+              <property name="text">
+               <string>+Z</string>
+              </property>
+             </item>
+             <item>
+              <property name="text">
+               <string>-X</string>
+              </property>
+             </item>
+             <item>
+              <property name="text">
+               <string>-Y</string>
+              </property>
+             </item>
+             <item>
+              <property name="text">
+               <string>-Z</string>
+              </property>
+             </item>
             </widget>
            </item>
            <item row="0" column="0">
@@ -1128,7 +1458,13 @@
            </widget>
           </item>
           <item>
-           <widget class="QComboBox" name="comboData"/>
+           <widget class="QComboBox" name="comboData">
+            <item>
+             <property name="text">
+              <string>Attitude</string>
+             </property>
+            </item>
+           </widget>
           </item>
          </layout>
         </item>

@@ -6,111 +6,62 @@
 #include <QtSerialPort/QSerialPortInfo>
 #include <QDebug>
 
-static ListItem OutputCommands[4] = {
-/*  ID,  Name */
-    {0, "Pitch"   },
-    {1, "Roll"    },
-    {2, "Yaw"     },
-    {3, "Disabled"},
-};
-
-static ListItem OutputDeadTime[5] = {
-/*  ID,  Name */
-    {0, "1000ns" },
-    {1, "2000ns" },
-    {2, "3000ns"},
-    {3, "4000ns"},
-    {4, "5000ns"},
-};
-
-static ListItem InputChannel[6] = {
-/*  ID, Name */
-    {0, "AUX1 analog"},
-    {1, "AUX2 analog"},
-    {2, "AUX3 PWM"},
-    {3, "AUX4 PWM"},
-    {4, "AUX5 PWM"},
-    {5, "Disabled"},
-};
-
-static ListItem InputMode[3] = {
-/*  ID, Name */
-    {0, "Angle"},
-    {1, "Speed"},
-    {2, "Follow"},
-};
-
-static ListItem SensorAxis[6] = {
-/*  ID, Name */
-    {0, "+X"},
-    {1, "+Y"},
-    {2, "+Z"},
-    {3, "-X"},
-    {4, "-Y"},
-    {5, "-Z"},
-};
-
-static ListItem PlotData[1] = {
-/*  ID, Name */
-    {0, "Attitude"}
-};
-
 static PIDSettings PID[3] = {
 /*   P, I, D */
-    {0, 0, 0},  // Pitch
-    {0, 0, 0},  // Roll
-    {0, 0, 0}   // Yaw
+    {0, 0, 0},  /* Pitch */
+    {0, 0, 0},  /* Roll  */
+    {0, 0, 0}   /* Yaw   */
 };
 
 static OutputSettings outSettings[3] = {
-    {0,     /* Power, % */
+    {0,     /* Power, %        */
      14,    /* Number of poles */
-     0,     /* Reverse */
-     3,     /* Command ID */
-     4},    /* Dead-time ID */
-    {0,     /* Power, % */
+     0,     /* Reverse         */
+     3,     /* Command ID      */
+     4},    /* Dead-time ID    */
+    {0,     /* Power, %        */
      14,    /* Number of poles */
-     0,     /* Reverse */
-     3,     /* Command ID */
-     4},    /* Dead-time ID */
-    {0,     /* Power, % */
+     0,     /* Reverse         */
+     3,     /* Command ID      */
+     4},    /* Dead-time ID    */
+    {0,     /* Power, %        */
      14,    /* Number of poles */
-     0,     /* Reverse */
-     3,     /* Command ID */
-     4}     /* Dead-time ID */
+     0,     /* Reverse         */
+     3,     /* Command ID      */
+     4}     /* Dead-time ID    */
 };
 
 static InputSettings inSettings[3] = {
-    {1000,  /* Min */
-     1500,  /* Mid */
-     2000,  /* Max */
+    {1000,  /* Min       */
+     1500,  /* Mid       */
+     2000,  /* Max       */
      5},    /* Channel # */
-    {1000,  /* Min */
-     1500,  /* Mid */
-     2000,  /* Max */
+    {1000,  /* Min       */
+     1500,  /* Mid       */
+     2000,  /* Max       */
      5},    /* Channel # */
-    {1000,  /* Min */
-     1500,  /* Mid */
-     2000,  /* Max */
+    {1000,  /* Min       */
+     1500,  /* Mid       */
+     2000,  /* Max       */
      5}     /* Channel # */
 };
 
 static InputModeSettings modeSettings[3] = {
     {-60,   /* Min angle */
      60,    /* Max angle */
-     0,     /* Offset */
-     20,    /* Speed */
-     0},    /* Mode ID */
+     0,     /* Offset    */
+     20,    /* Speed     */
+     0},    /* Mode ID   */
     {-60,   /* Min angle */
      60,    /* Max angle */
-     0,     /* Offset */
-     20,    /* Speed */
-     0},    /* Mode ID */
+     0,     /* Offset    */
+     20,    /* Speed     */
+     0},    /* Mode ID   */
     {-90,   /* Min angle */
      90,    /* Max angle */
-     0,     /* Offset */
-     20,    /* Speed */
-     0}     /* Mode ID */
+     0,     /* Offset    */
+     20,    /* Speed     */
+     0}     /* Mode ID   */
 };
 
 static SensorSettings sensorSettings[3] = {
@@ -136,6 +87,8 @@ static quint8 amMtx[6][6] = {
     {5, 6, 0, 2, 6, 3},//-Y;
     {1, 3, 6, 4, 0, 6},//-Z;
 };
+
+static I2CErrorStruct i2cErrorInfo = {0, 0};
 
 /**
  * @brief Quaternion2RPY
@@ -175,80 +128,50 @@ quint32 crc32(const quint32 pBuf[], size_t length);
 MainWindow::MainWindow(QWidget *parent) :
     QMainWindow(parent),
     ui(new Ui::MainWindow),
+    m_SerialDeviceList(new QComboBox),
     fConnected(false),
     bytesRequired(0),
     boardStatus(0)
 {
     ui->setupUi(this);
-    cbDevList = new QComboBox(ui->mainToolBar);
-    cbDevList->setMinimumWidth(250);
-    cbDevList->setEnabled(false);
-    ui->mainToolBar->insertWidget(ui->actionHandleConnection, cbDevList);
+
+    m_SerialDeviceList->setMinimumWidth(250);
+    m_SerialDeviceList->setEnabled(false);
+    ui->mainToolBar->insertWidget(ui->actionHandleConnection, m_SerialDeviceList);
     ui->mainToolBar->insertSeparator(ui->actionHandleConnection);
-    lbI2CErrors = new QLabel(ui->statusBar);
-    lbI2CErrors->setText("I2C Errors: 0");
-    ui->statusBar->insertPermanentWidget(0, lbI2CErrors);
 
-    serial = new QSerialPort(this);
-
-    connect(ui->actionHandleConnection, SIGNAL(triggered()), this,
-            SLOT(HandleSerialConnection()));
+    connect(ui->actionHandleConnection, SIGNAL(triggered()), this, SLOT(HandleSerialConnection()));
     connect(ui->actionRead, SIGNAL(triggered()), this, SLOT(HandleReadSettings()));
     connect(ui->actionSet, SIGNAL(triggered()), this, SLOT(HandleApplySettings()));
     connect(ui->actionSave, SIGNAL(triggered()), this, SLOT(HandleSaveSettings()));
-    connect(&timer, SIGNAL(timeout()), this, SLOT(ProcessTimeout()));
-    connect(serial, SIGNAL(readyRead()), this, SLOT(ReadSerialData()));
-    connect(serial, SIGNAL(error(QSerialPort::SerialPortError)), this,
+    connect(&m_timer, SIGNAL(timeout()), this, SLOT(ProcessTimeout()));
+    connect(&m_serialPort, SIGNAL(readyRead()), this, SLOT(ReadSerialData()));
+    connect(&m_serialPort, SIGNAL(error(QSerialPort::SerialPortError)), this,
             SLOT(HandleSerialError(QSerialPort::SerialPortError)));
     connect(ui->pushSensor1AccCalibrate, SIGNAL(clicked()), this, SLOT(HandleAccCalibrate()));
     connect(ui->pushSensor1GyroCalibrate, SIGNAL(clicked()), this, SLOT(HandleGyroCalibrate()));
 
     FillPortsInfo();
 
-    for(int i = 0; i < 4; i++) {
-        ui->comboPitchCommand->addItem(OutputCommands[i].item_name, OutputCommands[i].item_id);
-        ui->comboRollCommand->addItem(OutputCommands[i].item_name, OutputCommands[i].item_id);
-        ui->comboYawCommand->addItem(OutputCommands[i].item_name, OutputCommands[i].item_id);
-    }
     ui->comboPitchCommand->setCurrentIndex(3);
     ui->comboRollCommand->setCurrentIndex(3);
     ui->comboYawCommand->setCurrentIndex(3);
 
-    for(int i = 0; i < 5; i++) {
-        ui->comboPitchDeadTime->addItem(OutputDeadTime[i].item_name, OutputDeadTime[i].item_id);
-        ui->comboRollDeadTime->addItem(OutputDeadTime[i].item_name, OutputDeadTime[i].item_id);
-        ui->comboYawDeadTime->addItem(OutputDeadTime[i].item_name, OutputDeadTime[i].item_id);
-    }
     ui->comboPitchDeadTime->setCurrentIndex(4);
     ui->comboRollDeadTime->setCurrentIndex(4);
     ui->comboYawDeadTime->setCurrentIndex(4);
 
-    for(int i = 0; i < 6; i++) {
-        ui->comboInputChannelPitch->addItem(InputChannel[i].item_name, InputChannel[i].item_id);
-        ui->comboInputChannelRoll->addItem(InputChannel[i].item_name, InputChannel[i].item_id);
-        ui->comboInputChannelYaw->addItem(InputChannel[i].item_name, InputChannel[i].item_id);
-    }
     ui->comboInputChannelPitch->setCurrentIndex(5);
     ui->comboInputChannelRoll->setCurrentIndex(5);
     ui->comboInputChannelYaw->setCurrentIndex(5);
 
-    for(int i = 0; i < 3; i++) {
-        ui->comboInputModePitch->addItem(InputMode[i].item_name, InputMode[i].item_id);
-        ui->comboInputModeRoll->addItem(InputMode[i].item_name, InputMode[i].item_id);
-        ui->comboInputModeYaw->addItem(InputMode[i].item_name, InputMode[i].item_id);
-    }
     ui->comboInputModePitch->setCurrentIndex(0);
     ui->comboInputModeRoll->setCurrentIndex(0);
     ui->comboInputModeYaw->setCurrentIndex(0);
 
-    for(int i = 0; i < 6; i++) {
-        ui->comboSensor1AxisTOP->addItem(SensorAxis[i].item_name, SensorAxis[i].item_id);
-        ui->comboSensor1AxisRIGHT->addItem(SensorAxis[i].item_name, SensorAxis[i].item_id);
-    }
     ui->comboSensor1AxisTOP->setCurrentIndex(2);
     ui->comboSensor1AxisRIGHT->setCurrentIndex(3);
 
-    ui->comboData->addItem(PlotData[0].item_name, PlotData[0].item_id);
     ui->comboData->setCurrentIndex(0);
 
     ui->plotData->addGraph();
@@ -296,14 +219,14 @@ MainWindow::~MainWindow()
  */
 void MainWindow::FillPortsInfo()
 {
-    cbDevList->clear();
+    m_SerialDeviceList->clear();
     if (QSerialPortInfo::availablePorts().count() == 0) {
-        cbDevList->addItem(tr("Serial port not detected"), "None");
+        m_SerialDeviceList->addItem(tr("Serial port not detected"), "None");
     } else {
         foreach (const QSerialPortInfo &info, QSerialPortInfo::availablePorts()) {
-            cbDevList->addItem(info.description() + ' ' + '(' + info.portName() + ')', info.portName());
+            m_SerialDeviceList->addItem(info.description() + ' ' + '(' + info.portName() + ')', info.portName());
         }
-        cbDevList->setEnabled(true);
+        m_SerialDeviceList->setEnabled(true);
         ui->actionHandleConnection->setEnabled(true);
     }
 }
@@ -314,34 +237,34 @@ void MainWindow::FillPortsInfo()
 void MainWindow::HandleSerialConnection()
 {
     if (fConnected) {
-        timer.stop();
-        serial->close();
+        m_timer.stop();
+        m_serialPort.close();
         ui->actionHandleConnection->setText(tr("Connect"));
         ui->actionRead->setEnabled(false);
         ui->actionSet->setEnabled(false);
         ui->actionSave->setEnabled(false);
-        cbDevList->setEnabled(true);
-        ui->statusBar->showMessage(tr("Disconnected from: %1").arg(cbDevList->currentText()));
+        m_SerialDeviceList->setEnabled(true);
+        ui->statusBar->showMessage(tr("Disconnected from: %1").arg(m_SerialDeviceList->currentText()));
         fConnected = false;
     } else {
-        QString portName = cbDevList->currentData().toString();
-        serial->setPortName(portName);
-        serial->setBaudRate(57600);
-        serial->setDataBits(QSerialPort::Data8);
-        serial->setParity(QSerialPort::NoParity);
-        serial->setStopBits(QSerialPort::OneStop);
-        serial->setFlowControl(QSerialPort::NoFlowControl);
-        if (serial->open(QIODevice::ReadWrite)) {
+        QString portName = m_SerialDeviceList->currentData().toString();
+        m_serialPort.setPortName(portName);
+        m_serialPort.setBaudRate(57600);
+        m_serialPort.setDataBits(QSerialPort::Data8);
+        m_serialPort.setParity(QSerialPort::NoParity);
+        m_serialPort.setStopBits(QSerialPort::OneStop);
+        m_serialPort.setFlowControl(QSerialPort::NoFlowControl);
+        if (m_serialPort.open(QIODevice::ReadWrite)) {
                 ui->actionHandleConnection->setText(tr("Disconnect"));
                 ui->actionRead->setEnabled(true);
                 ui->actionSet->setEnabled(true);
-                cbDevList->setEnabled(false);
-                ui->statusBar->showMessage(tr("Connected to: %1").arg(cbDevList->currentText()));
+                m_SerialDeviceList->setEnabled(false);
+                ui->statusBar->showMessage(tr("Connected to: %1").arg(m_SerialDeviceList->currentText()));
                 fConnected = true;
-                timer.start(100);
+                m_timer.start(100);
         } else {
-            QMessageBox::critical(this, tr("Serial Error"), serial->errorString());
-            ui->statusBar->showMessage(tr("Open error"));
+            QMessageBox::critical(this, tr("Serial Error"), m_serialPort.errorString());
+            ui->statusBar->showMessage(tr("Open error"), 2000);
         }
     }
 }
@@ -352,10 +275,10 @@ void MainWindow::HandleSerialConnection()
  */
 void MainWindow::SendTelemetryData(const PDataHdr pHdr)
 {
-    serial->write((const char*)pHdr, sizeof(pHdr->cmd_id) + sizeof(pHdr->size));
+    m_serialPort.write((const char*)pHdr, sizeof(pHdr->cmd_id) + sizeof(pHdr->size));
     if (pHdr->size) {
-        serial->write((const char*)pHdr->data, pHdr->size);
-        serial->write((const char*)&pHdr->crc, sizeof(pHdr->crc));
+        m_serialPort.write((const char*)pHdr->data, pHdr->size);
+        m_serialPort.write((const char*)&pHdr->crc, sizeof(pHdr->crc));
     }
 }
 
@@ -380,6 +303,11 @@ void MainWindow::HandleReadSettings()
 {
     /* Get board status data. */
     dataHdr.cmd_id = 'b';
+    dataHdr.size   = 0;
+    SendTelemetryData(&dataHdr);
+
+    /* Get I2C error info data. */
+    dataHdr.cmd_id = 'e';
     dataHdr.size   = 0;
     SendTelemetryData(&dataHdr);
 
@@ -419,7 +347,7 @@ void MainWindow::HandleApplySettings()
         qDebug() << "Pitch P:" << PID[0].P << "I:" << PID[0].I << "D:" << PID[0].D;
         qDebug() << "Roll  P:" << PID[1].P << "I:" << PID[1].I << "D:" << PID[1].D;
         qDebug() << "Yaw   P:" << PID[2].P << "I:" << PID[2].I << "D:" << PID[2].D;
-        qDebug() << sizeof(PID) << "";
+        qDebug() << "Size:" << sizeof(PID);
 
         /* Clean data buffer for zero-padded crc32 checksum calculation. */
         memset((void *)dataBuf, 0, sizeof(dataBuf));
@@ -443,7 +371,7 @@ void MainWindow::HandleApplySettings()
         qDebug() << "Yaw   Pwr:" << outSettings[2].power << "NPoles:" << outSettings[2].num_poles \
                  << "Rev:" << outSettings[2].reverse << "Cmd:" << outSettings[2].cmd_id \
                  << "DT:" << outSettings[2].dt_id;
-        qDebug() << sizeof(outSettings) << "";
+        qDebug() << "Size:" << sizeof(outSettings);
 
         /* Clean data buffer for zero-padded crc32 checksum calculation. */
         memset((void *)dataBuf, 0, sizeof(dataBuf));
@@ -464,7 +392,7 @@ void MainWindow::HandleApplySettings()
                  << "Mid:" << inSettings[1].mid_val << "Max:" << inSettings[1].max_val;
         qDebug() << "Yaw   Ch#:" << inSettings[2].channel_id << "Min:" << inSettings[2].min_val \
                  << "Mid:" << inSettings[2].mid_val << "Max:" << inSettings[2].max_val;
-        qDebug() << sizeof(inSettings) << "";
+        qDebug() << "Size:" << sizeof(inSettings);
 
         /* Clean data buffer for zero-padded crc32 checksum calculation. */
         memset((void *)dataBuf, 0, sizeof(dataBuf));
@@ -488,7 +416,7 @@ void MainWindow::HandleApplySettings()
         qDebug() << "Yaw   Mode#:" << modeSettings[2].mode_id << "MinA:" << modeSettings[2].min_angle \
                  << "MaxA:" << modeSettings[2].max_angle << "Speed:" << modeSettings[2].speed \
                  << "Offset:" << modeSettings[2].offset;
-        qDebug() << sizeof(modeSettings) << "";
+        qDebug() << "Size:" << sizeof(modeSettings);
 
         /* Clean data buffer for zero-padded crc32 checksum calculation. */
         memset((void *)dataBuf, 0, sizeof(dataBuf));
@@ -506,6 +434,7 @@ void MainWindow::HandleApplySettings()
         qDebug() << "FRONT id:" << sensorSettings[0].axis_id << "dir:" << sensorSettings[0].axis_dir;
         qDebug() << "RIGHT id:" << sensorSettings[1].axis_id << "dir:" << sensorSettings[1].axis_dir;
         qDebug() << "TOP   id:" << sensorSettings[2].axis_id << "dir:" << sensorSettings[2].axis_dir;
+        qDebug() << "Size:" << sizeof(sensorSettings);
 
         /* Clean data buffer for zero-padded crc32 checksum calculation. */
         memset((void *)dataBuf, 0, sizeof(dataBuf));
@@ -561,8 +490,6 @@ void MainWindow::ProcessTimeout()
     dataHdr.cmd_id = 'h';
     dataHdr.size   = 0;
     SendTelemetryData(&dataHdr);
-
-    //lbI2CErrors->setText(tr("I2C Errors: %1").arg(nCounter));
 }
 
 /**
@@ -570,7 +497,7 @@ void MainWindow::ProcessTimeout()
  */
 void MainWindow::ReadSerialData()
 {
-    qint64 bytesAvailable = serial->bytesAvailable();
+    qint64 bytesAvailable = m_serialPort.bytesAvailable();
 
     if (bytesRequired) { /* Continue with previous command. */
         if (bytesAvailable >= bytesRequired) {
@@ -578,8 +505,8 @@ void MainWindow::ReadSerialData()
                 /* Clean data buffer for zero-padded crc32 checksum calculation. */
                 memset((void *)dataBuf, 0, sizeof(dataBuf));
             }
-            serial->read(dataBuf, dataHdr.size);
-            serial->read((char *)&dataHdr.crc, sizeof(dataHdr.crc));
+            m_serialPort.read(dataBuf, dataHdr.size);
+            m_serialPort.read((char *)&dataHdr.crc, sizeof(dataHdr.crc));
             dataHdr.data = dataBuf;
             bytesRequired = 0;
             ProcessSerialCommands(&dataHdr);
@@ -590,7 +517,7 @@ void MainWindow::ReadSerialData()
         }
     } else { /* Read next command from the queue. */
         if (bytesAvailable >= 2) {
-            serial->read((char *)&dataHdr, 2);
+            m_serialPort.read((char *)&dataHdr, 2);
             bytesAvailable -= 2;
             if (dataHdr.size) {
                 if (bytesAvailable >= (dataHdr.size + sizeof(dataHdr.crc))) {
@@ -598,8 +525,8 @@ void MainWindow::ReadSerialData()
                         /* Clean data buffer for zero-padded crc32 checksum calculation. */
                         memset((void *)dataBuf, 0, sizeof(dataBuf));
                     }
-                    serial->read(dataBuf, dataHdr.size);
-                    serial->read((char *)&dataHdr.crc, sizeof(dataHdr.crc));
+                    m_serialPort.read(dataBuf, dataHdr.size);
+                    m_serialPort.read((char *)&dataHdr.crc, sizeof(dataHdr.crc));
                     dataHdr.data = dataBuf;
                     ProcessSerialCommands(&dataHdr);
                     bytesAvailable -= dataHdr.size + sizeof(dataHdr.crc);
@@ -629,7 +556,7 @@ void MainWindow::HandleSerialError(QSerialPort::SerialPortError error)
         if (fConnected ) {
             HandleSerialConnection();
         }
-        QMessageBox::critical(this, tr("Critical Error"), serial->errorString());
+        QMessageBox::critical(this, tr("Critical Error"), m_serialPort.errorString());
     }
 }
 
@@ -729,6 +656,15 @@ void MainWindow::ProcessSerialCommands(const PDataHdr pHdr)
             SetSensorSettings();
         } else {
             qDebug() << "Sensor settings CRC32 mismatch:" << hex << pHdr->crc << "|" << GetCRC32Checksum(pHdr);
+        }
+        break;
+    case 'e':
+        if ((pHdr->size == sizeof(i2cErrorInfo)) && (pHdr->crc == GetCRC32Checksum(pHdr))) {
+            memcpy((void *)&i2cErrorInfo, (void *)pHdr->data, pHdr->size);
+            qDebug() << "I2C Error Info:\r\n  I2C last error code:" << i2cErrorInfo.last_i2c_error \
+                     << "\r\n  I2C errors:" << i2cErrorInfo.i2c_error_counter;
+        } else {
+            qDebug() << "I2C error info CRC32 mismatch:" << hex << pHdr->crc << "|" << GetCRC32Checksum(pHdr);
         }
         break;
     case 'g':
