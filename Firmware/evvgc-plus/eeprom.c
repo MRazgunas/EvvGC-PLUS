@@ -13,6 +13,12 @@
     See the License for the specific language governing permissions and
     limitations under the License.
 */
+/**
+ * WARNING!
+ * - EEPROM chip is accessible only if MPU6050 sensor is connected to the I2C bus.
+ *   Otherwise pull-up resistors are missing on SDA and SCL lines, therefore
+ *   communication with EEPROM chip is impossible.
+ */
 
 #include "ch.h"
 #include "hal.h"
@@ -35,15 +41,22 @@
 #define EEPROM_START_ADDR       0x00
 
 typedef struct tagEEPROMStruct {
-  PIDSettings pidSettings[3];
-  PWMOutputStruct pwmOutput[3];
-  MixedInputStruct mixedInput[3];
-  InputModeStruct modeSettings[3];
-  SensorStruct sensorSettings[3];
-  float accelBias[3];
-  float gyroBias[3];
-  uint32_t crc32;
+  PIDSettings pidSettings[3];       /*  9 bytes */
+  PWMOutputStruct pwmOutput[3];     /* 15 bytes */
+  MixedInputStruct mixedInput[3];   /* 21 byte  */
+  InputModeStruct modeSettings[3];  /* 24 bytes */
+  SensorStruct sensorSettings[3];   /*  6 bytes */
+  float accelBias[3];               /* 12 bytes */
+  float gyroBias[3];                /* 12 bytes */
+  uint32_t crc32;                   /*  4 bytes */
+/* TOTAL:                             103 bytes */
 } __attribute__((packed)) EEPROMStruct, *PEEPROMStruct;
+
+/**
+ * Global variables
+ */
+/* I2C error info structure. */
+extern I2CErrorStruct g_i2cErrorInfo;
 
 /**
  * Local variables
@@ -52,7 +65,6 @@ static size_t dataSizeLeft = 0;
 static uint8_t newAddr;
 static uint8_t *pDataAddr;
 static uint8_t fSkipContinue = 0;
-static i2cflags_t i2c_err = 0;
 
 static EEPROMStruct eepromData;
 static uint8_t eepromTXBuf[EEPROM_24C02_PAGE_SIZE + 1];
@@ -86,7 +98,10 @@ static uint8_t eepromWriteData(uint8_t addr, uint8_t *pData, size_t size) {
       NULL, 0, MS2ST(EEPROM_WRITE_TIMEOUT_MS));
     i2cReleaseBus(&I2CD2);
     if (status != RDY_OK) {
-      i2c_err = i2cGetErrors(&I2CD2);
+      g_i2cErrorInfo.last_i2c_error = i2cGetErrors(&I2CD2);
+      if (g_i2cErrorInfo.last_i2c_error) {
+        g_i2cErrorInfo.i2c_error_counter++;
+      }
       return 0;
     }
     /* If write is successful, update variables for next write operation. */
@@ -101,7 +116,10 @@ static uint8_t eepromWriteData(uint8_t addr, uint8_t *pData, size_t size) {
         NULL, 0, MS2ST(EEPROM_WRITE_TIMEOUT_MS));
       i2cReleaseBus(&I2CD2);
       if (status != RDY_OK) {
-        i2c_err = i2cGetErrors(&I2CD2);
+        g_i2cErrorInfo.last_i2c_error = i2cGetErrors(&I2CD2);
+        if (g_i2cErrorInfo.last_i2c_error) {
+          g_i2cErrorInfo.i2c_error_counter++;
+        }
         return 0;
       }
       /* If write is successful, update variables for next write operation. */
@@ -115,7 +133,10 @@ static uint8_t eepromWriteData(uint8_t addr, uint8_t *pData, size_t size) {
         NULL, 0, MS2ST(EEPROM_WRITE_TIMEOUT_MS));
       i2cReleaseBus(&I2CD2);
       if (status != RDY_OK) {
-        i2c_err = i2cGetErrors(&I2CD2);
+        g_i2cErrorInfo.last_i2c_error = i2cGetErrors(&I2CD2);
+        if (g_i2cErrorInfo.last_i2c_error) {
+          g_i2cErrorInfo.i2c_error_counter++;
+        }
         return 0;
       }
       dataSizeLeft = 0;
@@ -139,13 +160,16 @@ uint8_t eepromLoadSettings(void) {
   i2cReleaseBus(&I2CD2);
 
   if (status != RDY_OK) {
-    i2c_err = i2cGetErrors(&I2CD2);
+    g_i2cErrorInfo.last_i2c_error = i2cGetErrors(&I2CD2);
+    if (g_i2cErrorInfo.last_i2c_error) {
+      g_i2cErrorInfo.i2c_error_counter++;
+    }
     return 0;
   }
 
   if (eepromData.crc32 != crcCRC32((uint32_t *)&eepromData, sizeof(eepromData) / sizeof(uint32_t) - 1)) {
     /* Fill with default settings. */
-    return  eepromSaveSettings();
+    return eepromSaveSettings();
   } else {
     pidSettingsUpdate(eepromData.pidSettings);
     pwmOutputSettingsUpdate(eepromData.pwmOutput);
@@ -155,6 +179,7 @@ uint8_t eepromLoadSettings(void) {
     accelBiasUpdate(eepromData.accelBias);
     gyroBiasUpdate(eepromData.gyroBias);
   }
+
   return 1;
 }
 

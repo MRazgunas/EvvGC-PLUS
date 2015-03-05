@@ -43,14 +43,14 @@
 
 /* Sensor scales */
 //#define MPU6050_GYRO_SCALE              (1.0f / 131.0f) //  250 deg/s
-#define MPU6050_GYRO_SCALE              (1.0f /  65.5f) //  500 deg/s
-//#define MPU6050_GYRO_SCALE              (1.0f /  32.8f) // 1000 deg/s
+//#define MPU6050_GYRO_SCALE              (1.0f /  65.5f) //  500 deg/s
+#define MPU6050_GYRO_SCALE              (1.0f /  32.8f) // 1000 deg/s
 //#define MPU6050_GYRO_SCALE              (1.0f /  16.4f) // 2000 deg/s
 
 #define GRAV                            9.81
 //#define MPU6050_ACCEL_SCALE             (GRAV / 16384.0f) //  2G
-#define MPU6050_ACCEL_SCALE             (GRAV /  8192.0f) //  4G
-//#define MPU6050_ACCEL_SCALE             (GRAV /  4096.0f) //  8G
+//#define MPU6050_ACCEL_SCALE             (GRAV /  8192.0f) //  4G
+#define MPU6050_ACCEL_SCALE             (GRAV /  4096.0f) //  8G
 //#define MPU6050_ACCEL_SCALE             (GRAV /  2048.0f) // 16G
 
 typedef struct tagSensorStruct {

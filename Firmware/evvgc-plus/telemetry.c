@@ -30,11 +30,19 @@
 /* Telemetry buffer size in bytes.  */
 #define TELEMETRY_BUFFER_SIZE   32
 
+/**
+ * Global variables
+ */
 /* Board status variable. */
 extern uint32_t g_boardStatus;
-
+/* I2C error info structure. */
+extern I2CErrorStruct g_i2cErrorInfo;
 /* Console input/output handle. */
 BaseChannel *g_chnp;
+
+/**
+ * Local variables
+ */
 /* Telemetry data header. */
 static DataHdr dataHdr;
 /* Data buffer for various telemetry IO operations. */
@@ -125,6 +133,13 @@ static void telemetryProcessCommand(const PDataHdr pHdr) {
     memset((void *)dataBuf, 0, sizeof(dataBuf));
     memcpy((void *)dataBuf, (void *)g_sensorSettings, sizeof(g_sensorSettings));
     pHdr->size = sizeof(g_sensorSettings);
+    pHdr->data = dataBuf;
+    pHdr->crc  = telemetryGetCRC32Checksum(pHdr);
+    telemetrySendSerialData(pHdr);
+    break;
+  case 'e': /* Outputs I2C error info structure; */
+    memcpy((void *)dataBuf, (void *)&g_i2cErrorInfo, sizeof(g_i2cErrorInfo));
+    pHdr->size = sizeof(g_i2cErrorInfo);
     pHdr->data = dataBuf;
     pHdr->crc  = telemetryGetCRC32Checksum(pHdr);
     telemetrySendSerialData(pHdr);

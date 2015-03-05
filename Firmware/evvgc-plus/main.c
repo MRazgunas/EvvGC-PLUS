@@ -33,6 +33,7 @@
 
 uint32_t g_boardStatus = 0;
 uint8_t g_fCalibrating = FALSE;
+I2CErrorStruct g_i2cErrorInfo = {0, 0};
 
 /* I2C2 configuration for I2C driver 2 */
 static const I2CConfig i2cfg_d2 = {
@@ -56,7 +57,7 @@ static msg_t BlinkerThread(void *arg) {
   while (TRUE) {
     systime_t time;
     if (g_fCalibrating) {
-      time = 100;
+      time = 50;
     } else {
       time = serusbcfg.usbp->state == USB_ACTIVE ? 250 : 500;
     }
@@ -141,11 +142,14 @@ int main(void) {
   /* Activates the I2C driver 2. */
   i2cInit();
   i2cStart(&I2CD2, &i2cfg_d2);
-    
+
   /* Enables the CRC peripheral clock. */
   rccEnableCRC(FALSE);
 
-  /* Loads settings from external EEPROM chip. */
+  /* Loads settings from external EEPROM chip.
+     WARNING! If MPU6050 sensor is not connected to the I2C bus, there
+     aren't pull-up resistors on SDA and SCL lines, therefore it is
+     impossible to communicate with EEPROM without the sensor connected. */
   if (eepromLoadSettings()) {
     g_boardStatus |= EEPROM_24C02_DETECTED;
   }
@@ -178,8 +182,8 @@ int main(void) {
   while (TRUE) {
     g_chnp = serusbcfg.usbp->state == USB_ACTIVE ? (BaseChannel *)&SDU1 : (BaseChannel *)&SD4;
     telemetryReadSerialData();
-    if (eepromIsDataLeft()) {
-      eepromContinueSaving();  
+    if ((g_boardStatus & EEPROM_24C02_DETECTED) && eepromIsDataLeft()) {
+      eepromContinueSaving();
     }
     chThdSleepMilliseconds(TELEMETRY_SLEEP_MS);
   }

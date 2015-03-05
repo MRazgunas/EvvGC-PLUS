@@ -28,7 +28,7 @@
  * This technique increases motor driving efficiency by almost 14%.
  * Disabled by default.
  */
-//#define USE_THI_PWM
+#define USE_THI_PWM
 
 /**
  * DeadTime range (us) = (0..127) * 1 / 72;
@@ -66,6 +66,12 @@
 /* DT = 252 * 2 / 72 = 7us */
 #define PWM_OUT_TIM4_5_DT_7US   0xFC
 
+/**
+ * PWM value for the 50 percent of the total power, given:
+ * - PWM clock frequency = 72 MHz;
+ * - PWM period = 1/18000 s;
+ */
+#define PWM_OUT_POWER_50PCT     0x03E8
 /**
  * PWM value for the half percent of the total power, given:
  * - PWM clock frequency = 72 MHz;
@@ -405,20 +411,23 @@ static void pwmOutputDisableYaw(void) {
 }
 
 /**
- * @brief
+ * @brief  Converts motor command to biased three phase motor driving PWM signal.
+ * @param  cmd - new position of the motor.
+ * @param  power - power of the motor in percent.
  * @return none.
  */
 static void pwmOutputCmdTo3PhasePWM(float cmd, uint8_t power) {
-  float halfPower = power * PWM_OUT_POWER_1PCT2;
 #if defined(USE_THI_PWM)
+  float halfPower = power * PWM_OUT_POWER_1PCT2 * THI_PWM_K;
   float thirdHarmonic = sinf(cmd * 3.0f) / 6.0f;
-  pwm3PhaseDrv[0] = (1.0 + (sinf(cmd) + thirdHarmonic) * THI_PWM_K) * halfPower;
-  pwm3PhaseDrv[1] = (1.0 + (sinf(cmd + M_2PI_3) + thirdHarmonic) * THI_PWM_K) * halfPower;
-  pwm3PhaseDrv[2] = (1.0 + (sinf(cmd - M_2PI_3) + thirdHarmonic) * THI_PWM_K) * halfPower;
+  pwm3PhaseDrv[0] = PWM_OUT_POWER_50PCT + (sinf(cmd) + thirdHarmonic)*halfPower;
+  pwm3PhaseDrv[1] = PWM_OUT_POWER_50PCT + (sinf(cmd + M_2PI_3) + thirdHarmonic)*halfPower;
+  pwm3PhaseDrv[2] = PWM_OUT_POWER_50PCT + (sinf(cmd - M_2PI_3) + thirdHarmonic)*halfPower;
 #else
-  pwm3PhaseDrv[0] = (1.0 + sinf(cmd)) * halfPower;
-  pwm3PhaseDrv[1] = (1.0 + sinf(cmd + M_2PI_3)) * halfPower;
-  pwm3PhaseDrv[2] = (1.0 + sinf(cmd - M_2PI_3)) * halfPower;
+  float halfPower = power * PWM_OUT_POWER_1PCT2;
+  pwm3PhaseDrv[0] = PWM_OUT_POWER_50PCT + sinf(cmd)*halfPower;
+  pwm3PhaseDrv[1] = PWM_OUT_POWER_50PCT + sinf(cmd + M_2PI_3)*halfPower;
+  pwm3PhaseDrv[2] = PWM_OUT_POWER_50PCT + sinf(cmd - M_2PI_3)*halfPower;
 #endif /* USE_THI_PWM */
 }
 

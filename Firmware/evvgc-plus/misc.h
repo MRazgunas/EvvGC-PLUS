@@ -26,6 +26,11 @@
 #define constrain(val,min,max)  ((val)<(min)?(min):((val)>(max)?(max):(val)))
 #define circadjust(val,lim)     ((val)<-(lim)?(val)+2*(lim):((val)>(lim)?(val)-2*(lim):(val)))
 
+typedef struct tagI2CErrorStruct {
+  i2cflags_t last_i2c_error;
+  uint32_t i2c_error_counter;
+} __attribute__((packed)) I2CErrorStruct, *PI2CErrorStruct;
+
 #ifdef __cplusplus
 extern "C" {
 #endif

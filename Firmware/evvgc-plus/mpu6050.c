@@ -28,6 +28,7 @@
 #include "hal.h"
 
 #include "mpu6050.h"
+#include "misc.h"
 
 #define MPU6050_RX_BUF_SIZE   0x0E
 #define MPU6050_TX_BUF_SIZE   0x05
@@ -51,12 +52,12 @@ SensorStruct g_sensorSettings[3] = {
 float g_accelData[3] = {0.0f};
 /* Scaled gyroscope data. */
 float g_gyroData[3] = {0.0f};
+/* I2C error info structure. */
+extern I2CErrorStruct g_i2cErrorInfo;
 
 /**
  * Local variables
  */
-static i2cflags_t i2c_err = 0;
-
 /* Data buffers */
 static uint8_t mpu6050RXData[MPU6050_RX_BUF_SIZE];
 static uint8_t mpu6050TXData[MPU6050_TX_BUF_SIZE];
@@ -77,8 +78,11 @@ uint8_t mpu6050Init(void) {
     NULL, 0, MS2ST(MPU6050_WRITE_TIMEOUT_MS));
 
   if (status != RDY_OK) {
-    i2c_err = i2cGetErrors(&I2CD2);
     i2cReleaseBus(&I2CD2);
+    g_i2cErrorInfo.last_i2c_error = i2cGetErrors(&I2CD2);
+    if (g_i2cErrorInfo.last_i2c_error) {
+      g_i2cErrorInfo.i2c_error_counter++;
+    }
     return 0;
   }
 
@@ -93,8 +97,11 @@ uint8_t mpu6050Init(void) {
     NULL, 0, MS2ST(MPU6050_WRITE_TIMEOUT_MS));
 
   if (status != RDY_OK) {
-    i2c_err = i2cGetErrors(&I2CD2);
     i2cReleaseBus(&I2CD2);
+    g_i2cErrorInfo.last_i2c_error = i2cGetErrors(&I2CD2);
+    if (g_i2cErrorInfo.last_i2c_error) {
+      g_i2cErrorInfo.i2c_error_counter++;
+    }
     return 0;
   }
 
@@ -103,10 +110,10 @@ uint8_t mpu6050Init(void) {
   /* - SLEEP flag must be cleared before */
   /*   configuring the sensor.           */
   mpu6050TXData[0] = MPU6050_SMPLRT_DIV;  // Start register address;
-  mpu6050TXData[1] = 15;                  // SMPLRT_DIV register value (8000 / (1 + 15) = 500 Hz);
-  mpu6050TXData[2] = 0b00000000;          // CONFIG register value DLPF_CFG = 0;
-  mpu6050TXData[3] = 0b00001000;          // GYRO_CONFIG register value FS_SEL = +-500 deg/s;
-  mpu6050TXData[4] = 0b00001000;          // ACCEL_CONFIG register value AFS_SEL = +-4G;
+  mpu6050TXData[1] = 15;                  // SMPLRT_DIV register value (8000 / (15 + 1) = 500 Hz);
+  mpu6050TXData[2] = 0b00000000;          // CONFIG register value DLPF_CFG = 0 (256-260 Hz);
+  mpu6050TXData[3] = 0b00010000;          // GYRO_CONFIG register value FS_SEL = +-1000 deg/s;
+  mpu6050TXData[4] = 0b00010000;          // ACCEL_CONFIG register value AFS_SEL = +-8G;
 
   status = i2cMasterTransmitTimeout(&I2CD2, MPU6050_I2C_ADDR_A0_LOW, mpu6050TXData, 5,
     NULL, 0, MS2ST(MPU6050_WRITE_TIMEOUT_MS));
@@ -114,7 +121,10 @@ uint8_t mpu6050Init(void) {
   i2cReleaseBus(&I2CD2);
 
   if (status != RDY_OK) {
-    i2c_err = i2cGetErrors(&I2CD2);
+    g_i2cErrorInfo.last_i2c_error = i2cGetErrors(&I2CD2);
+    if (g_i2cErrorInfo.last_i2c_error) {
+      g_i2cErrorInfo.i2c_error_counter++;
+    }
     return 0;
   }
 
@@ -136,7 +146,10 @@ uint8_t mpu6050GetNewData(void) {
   i2cReleaseBus(&I2CD2);
 
   if (status != RDY_OK) {
-    i2c_err = i2cGetErrors(&I2CD2);
+    g_i2cErrorInfo.last_i2c_error = i2cGetErrors(&I2CD2);
+    if (g_i2cErrorInfo.last_i2c_error) {
+      g_i2cErrorInfo.i2c_error_counter++;
+    }
     return 0;
   }
 
