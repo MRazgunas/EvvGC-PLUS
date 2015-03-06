@@ -1,8 +1,15 @@
 #EvvGC-PLUS
-EvvGC-PLUS is the open source software and firmware hobby project for EvvGC brushless gimbal controller v1.x.
+**EvvGC-PLUS** is open source software and firmware hobby project for EvvGC brushless gimbal controller v1.x.
 
-EvvGC-PLUS firmware uses [ChibiOS/RT](http://chibios.org "ChibiOS Homepage") real time operating system (RTOS) and ChibiOS hardware abstraction layer (HAL).
-GUI is written using [Qt framework](http://qt-project.org "Qt Homepage") and [QCustomPlot](http://www.qcustomplot.com "QCustomPlot Homepage") - a Qt C++ widget for plotting and data visualization.
+**FEATURES of EvvGC-PLUS:**
+* EvvGC-PLUS firmware is based on [ChibiOS/RT](http://chibios.org "ChibiOS Homepage") real time operating system (**RTOS**) for easy multitasking.
+* ChibiOS/RT hardware abstraction layer (**HAL**) is used for efficient, usually DMA based control of the STM32 peripherals.
+* Quaternion based attitude estimation loop runs at 500 Hz.
+* Motor driving efficiency is increased by ~14% using third harmonic injection technique.
+* Any orientation of the sensor is possible.
+* PID controller is based on motor speed.
+* EvvGC-PLUS configurator is written using [Qt framework](http://qt-project.org "Qt Homepage").
+* [QCustomPlot](http://www.qcustomplot.com "QCustomPlot Homepage") is used for easy plotting and data visualization.
 
 **DO NOT DOWNLOAD, BUILD, FLASH OR INSTALL IT IF YOU DON'T KNOW WHAT YOU ARE DOING!!!**
 
