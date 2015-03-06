@@ -42,6 +42,9 @@
 #define CALIBRATION_COUNTER_MAX   5000
 #define FIXED_DT_STEP             0.002f
 
+#define MOTOR_STEP_LIMIT_MAX      M_PI / 36.0f
+#define MOTOR_STEP_LIMIT_MIN      -MOTOR_STEP_LIMIT_MAX
+
 #define ACCEL_TAU                 0.1f
 #define INPUT_SIGNAL_ALPHA        200.0f
 #define MODE_FOLLOW_DEAD_BAND     M_PI / 36.0f
@@ -145,16 +148,12 @@ static float pidControllerApply(uint8_t cmd_id, float sp, float pv) {
   dist *= poles2;
   float cmd = PID[cmd_id].prevCmd;
   /* If there is a distance to travel then rotate the motor in small steps: */
-  float step = constrain(dist*PID[cmd_id].I,-M_PI/36.0f,M_PI/36.0f);
+  float step = constrain(dist*PID[cmd_id].I, MOTOR_STEP_LIMIT_MIN, MOTOR_STEP_LIMIT_MAX);
   cmd += step;
   /* Update offset of the motor: */
   g_motorOffset[cmd_id] += step;
   /* Wind-up guard limits motor offset range to one mechanical rotation: */
-  if (g_motorOffset[cmd_id] < 0.0f) {
-    g_motorOffset[cmd_id] = fmodf(g_motorOffset[cmd_id] - M_PI*poles2, -M_TWOPI*poles2) + M_PI*poles2;
-  } else {
-    g_motorOffset[cmd_id] = fmodf(g_motorOffset[cmd_id] + M_PI*poles2,  M_TWOPI*poles2) - M_PI*poles2;
-  }
+  g_motorOffset[cmd_id] = circadjust(g_motorOffset[cmd_id], M_PI*poles2);
   /* Calculate proportional speed of the motor: */
   float speed = dist - PID[cmd_id].prevDist;
   cmd += speed*PID[cmd_id].P;
@@ -198,19 +197,19 @@ static void cameraRotationUpdate(void) {
   float speedLimit;
 
   for (i = 0; i < 3; i++) {
-    speedLimit = ((float)g_modeSettings[i].speed) * DEG2RAD;
+    speedLimit = ((float)g_modeSettings[i].speed)*DEG2RAD;
 
     if (g_modeSettings[i].mode_id & INPUT_MODE_FOLLOW) {
       /* Calculate offset of the gimbal: */
-      coef = g_modeSettings[i].offset * DEG2RAD - g_motorOffset[i] / (g_pwmOutput[i].num_poles >> 1);
+      coef = g_modeSettings[i].offset*DEG2RAD - g_motorOffset[i] / (g_pwmOutput[i].num_poles >> 1);
       if (coef > MODE_FOLLOW_DEAD_BAND) {
         coef -= MODE_FOLLOW_DEAD_BAND;
         /* Convert to speed: */
-        coef /= INPUT_SIGNAL_ALPHA * FIXED_DT_STEP;
+        coef /= INPUT_SIGNAL_ALPHA*FIXED_DT_STEP;
       } else if (coef < -MODE_FOLLOW_DEAD_BAND) {
         coef += MODE_FOLLOW_DEAD_BAND;
         /* Convert to speed: */
-        coef /= INPUT_SIGNAL_ALPHA * FIXED_DT_STEP;
+        coef /= INPUT_SIGNAL_ALPHA*FIXED_DT_STEP;
       } else {
         coef = 0.0f;
       }
@@ -224,7 +223,7 @@ static void cameraRotationUpdate(void) {
 
       if (g_modeSettings[i].mode_id & INPUT_MODE_SPEED) {
         /* Calculate speed from RC input data: */
-        coef *= speedLimit * 2.0f;
+        coef *= 2.0f*speedLimit;
         camRotSpeedPrev[i] += (coef - camRotSpeedPrev[i]) / INPUT_SIGNAL_ALPHA;
         coef = camRotSpeedPrev[i];
       } else { /* INPUT_MODE_ANGLE */
@@ -239,7 +238,7 @@ static void cameraRotationUpdate(void) {
       }
     }
     coef = constrain(coef, -speedLimit, speedLimit);
-    camRot[i] += coef * FIXED_DT_STEP;
+    camRot[i] += coef*FIXED_DT_STEP;
     camRot[i] = circadjust(camRot[i], M_PI);
   }
 }

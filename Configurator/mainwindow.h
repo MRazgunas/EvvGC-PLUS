@@ -131,6 +131,7 @@ private:
     DataHdr dataHdr;
     quint32 boardStatus;
     quint16 inputValues[5];
+    float motorOffset[3];
 };
 
 #endif // MAINWINDOW_H

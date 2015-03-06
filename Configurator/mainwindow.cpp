@@ -676,10 +676,10 @@ void MainWindow::ProcessSerialCommands(const PDataHdr pHdr)
         break;
     case 'h':
         if ((pHdr->size == sizeof(float) * 3) && (pHdr->crc == GetCRC32Checksum(pHdr))) {
-            pfloatBuf = (float *)(pHdr->data);
-            ui->labelOffsetPitch->setText(tr("%1").arg(round(pfloatBuf[0]*RAD2DEG/(outSettings[0].num_poles >> 1))));
-            ui->labelOffsetRoll->setText(tr("%1").arg(round(pfloatBuf[1]*RAD2DEG/(outSettings[1].num_poles >> 1))));
-            ui->labelOffsetYaw->setText(tr("%1").arg(round(pfloatBuf[2]*RAD2DEG/(outSettings[2].num_poles >> 1))));
+            memcpy((void *)motorOffset, (void *)pHdr->data, pHdr->size);
+            ui->labelOffsetPitch->setText(tr("%1").arg(round(motorOffset[0]*RAD2DEG/(outSettings[0].num_poles >> 1))));
+            ui->labelOffsetRoll->setText(tr("%1").arg(round(motorOffset[1]*RAD2DEG/(outSettings[1].num_poles >> 1))));
+            ui->labelOffsetYaw->setText(tr("%1").arg(round(motorOffset[2]*RAD2DEG/(outSettings[2].num_poles >> 1))));
         } else {
             qDebug() << "Motor offset CRC32 mismatch:" << hex << pHdr->crc << "|" << GetCRC32Checksum(pHdr);
         }
