@@ -146,20 +146,19 @@ static float pidControllerApply(uint8_t cmd_id, float sp, float pv) {
   float dist = circadjust(sp - pv, M_PI);
   /* Convert mechanical distance to electrical distance: */
   dist *= poles2;
-  float cmd = PID[cmd_id].prevCmd;
   /* If there is a distance to travel then rotate the motor in small steps: */
   float step = constrain(dist*PID[cmd_id].I, MOTOR_STEP_LIMIT_MIN, MOTOR_STEP_LIMIT_MAX);
-  cmd += step;
-  /* Update offset of the motor: */
-  g_motorOffset[cmd_id] += step;
-  /* Wind-up guard limits motor offset range to one mechanical rotation: */
-  g_motorOffset[cmd_id] = circadjust(g_motorOffset[cmd_id], M_PI*poles2);
   /* Calculate proportional speed of the motor: */
   float speed = dist - PID[cmd_id].prevDist;
-  cmd += speed*PID[cmd_id].P;
-  /* Calculate acceleration of the motor: */
-  float accel = speed - PID[cmd_id].prevSpeed;
-  cmd += accel*PID[cmd_id].D;
+  step += speed*PID[cmd_id].P;
+  /* Account for the acceleration of the motor: */
+  step += (speed - PID[cmd_id].prevSpeed)*PID[cmd_id].D;
+  /* Update offset of the motor: */
+  g_motorOffset[cmd_id] += step / poles2;
+  /* Wind-up guard limits motor offset range to one mechanical rotation: */
+  g_motorOffset[cmd_id] = circadjust(g_motorOffset[cmd_id], M_PI);
+  /* Update motor position: */
+  float cmd = PID[cmd_id].prevCmd + step;
   /* Normalize command to -M_PI..M_PI range: */
   if (cmd < 0.0f) {
     cmd = fmodf(cmd - M_PI, -M_TWOPI) + M_PI;
@@ -201,7 +200,7 @@ static void cameraRotationUpdate(void) {
 
     if (g_modeSettings[i].mode_id & INPUT_MODE_FOLLOW) {
       /* Calculate offset of the gimbal: */
-      coef = g_modeSettings[i].offset*DEG2RAD - g_motorOffset[i] / (g_pwmOutput[i].num_poles >> 1);
+      coef = g_modeSettings[i].offset*DEG2RAD - g_motorOffset[i];
       if (coef > MODE_FOLLOW_DEAD_BAND) {
         coef -= MODE_FOLLOW_DEAD_BAND;
         /* Convert to speed: */
@@ -387,19 +386,21 @@ void attitudeUpdate(void) {
 void actuatorsUpdate(void) {
   float cmd = 0.0f;
   /* Pitch: */
-  uint8_t cmd_id = g_pwmOutput[PWM_OUT_PITCH].cmd_id;
+  uint8_t cmd_id = g_pwmOutput[PWM_OUT_PITCH].dt_cmd_id & PWM_OUT_CMD_ID_MASK;
   if (cmd_id != PWM_OUT_CMD_DISABLED) {
     cmd = pidControllerApply(cmd_id, camRot[cmd_id], camAtti[cmd_id]);
   }
   pwmOutputUpdate(PWM_OUT_PITCH, cmd);
+  cmd = 0.0f;
   /* Roll: */
-  cmd_id = g_pwmOutput[PWM_OUT_ROLL].cmd_id;
+  cmd_id = g_pwmOutput[PWM_OUT_ROLL].dt_cmd_id & PWM_OUT_CMD_ID_MASK;
   if (cmd_id != PWM_OUT_CMD_DISABLED) {
     cmd = pidControllerApply(cmd_id, camRot[cmd_id], camAtti[cmd_id]);
   }
   pwmOutputUpdate(PWM_OUT_ROLL, cmd);
+  cmd = 0.0f;
   /* Yaw: */
-  cmd_id = g_pwmOutput[PWM_OUT_YAW].cmd_id;
+  cmd_id = g_pwmOutput[PWM_OUT_YAW].dt_cmd_id & PWM_OUT_CMD_ID_MASK;
   if (cmd_id != PWM_OUT_CMD_DISABLED) {
     cmd = pidControllerApply(cmd_id, camRot[cmd_id], camAtti[cmd_id]);
   }

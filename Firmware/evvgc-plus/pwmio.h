@@ -17,21 +17,46 @@
 #ifndef PWMIO_H_
 #define PWMIO_H_
 
+/**
+ * Output channels.
+ */
 #define PWM_OUT_PITCH           0x00
 #define PWM_OUT_ROLL            0x01
 #define PWM_OUT_YAW             0x02
 
+/**
+ * Output command IDs.
+ */
 #define PWM_OUT_CMD_PITCH       0x00
 #define PWM_OUT_CMD_ROLL        0x01
 #define PWM_OUT_CMD_YAW         0x02
 #define PWM_OUT_CMD_DISABLED    0x03
 
-#define PWM_OUT_DT1000NS        0x00
-#define PWM_OUT_DT2000NS        0x01
-#define PWM_OUT_DT3000NS        0x02
-#define PWM_OUT_DT4000NS        0x03
-#define PWM_OUT_DT5000NS        0x04
+/**
+ * Dead-time IDs.
+ */
+#define PWM_OUT_DT750NS         0x00
+#define PWM_OUT_DT1000NS        0x10
+#define PWM_OUT_DT2000NS        0x20
+#define PWM_OUT_DT3000NS        0x30
+#define PWM_OUT_DT4000NS        0x40
+#define PWM_OUT_DT5000NS        0x50
 
+/**
+ * Flags.
+ */
+#define PWM_OUT_REV_FLAG        0x01
+#define PWM_OUT_THI_FLAG        0x02
+
+/**
+ * Masks for high and low nibbles of data.
+ */
+#define PWM_OUT_CMD_ID_MASK     0x0F
+#define PWM_OUT_DT_ID_MASK      0xF0
+
+/**
+ * Input channel IDs.
+ */
 #define INPUT_CHANNEL_AUX1      0x00
 #define INPUT_CHANNEL_AUX2      0x01
 #define INPUT_CHANNEL_AUX3      0x02
@@ -42,9 +67,8 @@
 typedef struct tagPWMOutputStruct {
   uint8_t power;
   uint8_t num_poles;
-  uint8_t reverse;
-  uint8_t cmd_id;
-  uint8_t dt_id;
+  uint8_t flags;
+  uint8_t dt_cmd_id; /* High nibble contains dead-time ID, low nibble contains command ID. */
 } __attribute__((packed)) PWMOutputStruct, *PPWMOutputStruct;
 
 typedef struct tagMixedInputStruct {

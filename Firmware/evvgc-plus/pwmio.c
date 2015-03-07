@@ -22,15 +22,6 @@
 #include <string.h>
 
 /**
- * Compiler directives
- */
-/* Uncomment this line to activate third harmonic injection PWM.
- * This technique increases motor driving efficiency by almost 14%.
- * Disabled by default.
- */
-#define USE_THI_PWM
-
-/**
  * DeadTime range (us) = (0..127) * 1 / 72;
  */
 #define BDTR_DTG_MUL1   0x00
@@ -51,6 +42,8 @@
 #define BDTR_DTG_MUL16  0xE0
 #define BDTR_DTG_MSK16  0x1F
 
+/* DT = 27 * 2 / 72 = 750ns */
+#define PWM_OUT_TIM4_5_DT_US7   0x1B
 /* DT = 36 * 2 / 72 = 1us */
 #define PWM_OUT_TIM4_5_DT_1US   0x24
 /* DT = 72 * 2 / 72 = 2us */
@@ -95,9 +88,7 @@
 /**
  * Amplitude scaling factor for third harmonic injection PWM.
  */
-#ifdef USE_THI_PWM
 #define THI_PWM_K       (2.0f / sqrtf(3.0f))
-#endif /* USE_THI_PWM */
 
 /**
  * Local macros for dead time calculation.
@@ -119,21 +110,21 @@ static void icuperiodcb(ICUDriver *icup, icuchannel_t channel);
  * Default settings for PWM outputs.
  */
 PWMOutputStruct g_pwmOutput[3] = {
-  {0,                      /* Motor power;       */
-   14,                     /* Number of poles;   */
-   0,                      /* Reverse flag;      */
-   PWM_OUT_CMD_DISABLED,   /* Output command ID; */
-   PWM_OUT_DT5000NS},      /* Dead-time ID;      */
-  {0,                      /* Motor power;       */
-   14,                     /* Number of poles;   */
-   0,                      /* Reverse flag;      */
-   PWM_OUT_CMD_DISABLED,   /* Output command ID; */
-   PWM_OUT_DT5000NS},      /* Dead-time ID;      */
-  {0,                      /* Motor power;       */
-   14,                     /* Number of poles;   */
-   0,                      /* Reverse flag;      */
-   PWM_OUT_CMD_DISABLED,   /* Output command ID; */
-   PWM_OUT_DT5000NS}       /* Dead-time ID;      */
+  {0,                      /* Motor power;     */
+   14,                     /* Number of poles; */
+   0x00,                   /* Flags;           */
+   PWM_OUT_CMD_DISABLED |
+   PWM_OUT_DT5000NS},      /* DTime-Cmd ID;    */
+  {0,                      /* Motor power;     */
+   14,                     /* Number of poles; */
+   0x00,                   /* Flags;           */
+   PWM_OUT_CMD_DISABLED |
+   PWM_OUT_DT5000NS},      /* DTime-Cmd ID;    */
+  {0,                      /* Motor power;     */
+   14,                     /* Number of poles; */
+   0x00,                   /* Flags;           */
+   PWM_OUT_CMD_DISABLED |
+   PWM_OUT_DT5000NS}       /* DTime-Cmd ID;    */
 };
 
 /**
@@ -360,6 +351,9 @@ static void icuperiodcb(ICUDriver *icup, icuchannel_t channel) {
 static uint32_t pwmOutputGetBDTRDeadTime(const uint8_t id) {
   uint32_t bdtr_dtg;
   switch (id) {
+  case PWM_OUT_DT750NS: /* DT = 54 / 72 = 0.75us */
+    bdtr_dtg = STM32_TIM_BDTR_DTG(BDTR_DTG_MUL1 | (BDTR_DTG_MSK1 & 0x36));
+    break;
   case PWM_OUT_DT1000NS: /* DT = 72 / 72 = 1us */
     bdtr_dtg = STM32_TIM_BDTR_DTG(BDTR_DTG_MUL1 | (BDTR_DTG_MSK1 & 0x48));
     break;
@@ -414,28 +408,30 @@ static void pwmOutputDisableYaw(void) {
  * @brief  Converts motor command to biased three phase motor driving PWM signal.
  * @param  cmd - new position of the motor.
  * @param  power - power of the motor in percent.
+ * @param  thi - third harmonic injection enable flag.
  * @return none.
  */
-static void pwmOutputCmdTo3PhasePWM(float cmd, uint8_t power) {
-#if defined(USE_THI_PWM)
-  float halfPower = power * PWM_OUT_POWER_1PCT2 * THI_PWM_K;
-  float thirdHarmonic = sinf(cmd * 3.0f) / 6.0f;
-  pwm3PhaseDrv[0] = PWM_OUT_POWER_50PCT + (sinf(cmd) + thirdHarmonic)*halfPower;
-  pwm3PhaseDrv[1] = PWM_OUT_POWER_50PCT + (sinf(cmd + M_2PI_3) + thirdHarmonic)*halfPower;
-  pwm3PhaseDrv[2] = PWM_OUT_POWER_50PCT + (sinf(cmd - M_2PI_3) + thirdHarmonic)*halfPower;
-#else
+static void pwmOutputCmdTo3PhasePWM(float cmd, uint8_t power, uint8_t thi) {
   float halfPower = power * PWM_OUT_POWER_1PCT2;
-  pwm3PhaseDrv[0] = PWM_OUT_POWER_50PCT + sinf(cmd)*halfPower;
-  pwm3PhaseDrv[1] = PWM_OUT_POWER_50PCT + sinf(cmd + M_2PI_3)*halfPower;
-  pwm3PhaseDrv[2] = PWM_OUT_POWER_50PCT + sinf(cmd - M_2PI_3)*halfPower;
-#endif /* USE_THI_PWM */
+  if (thi) {
+    halfPower *= THI_PWM_K;
+    float thirdHarmonic = sinf(cmd * 3.0f) / 6.0f;
+    pwm3PhaseDrv[0] = PWM_OUT_POWER_50PCT + (sinf(cmd) + thirdHarmonic)*halfPower;
+    pwm3PhaseDrv[1] = PWM_OUT_POWER_50PCT + (sinf(cmd + M_2PI_3) + thirdHarmonic)*halfPower;
+    pwm3PhaseDrv[2] = PWM_OUT_POWER_50PCT + (sinf(cmd - M_2PI_3) + thirdHarmonic)*halfPower;
+  } else {
+    pwm3PhaseDrv[0] = PWM_OUT_POWER_50PCT + sinf(cmd)*halfPower;
+    pwm3PhaseDrv[1] = PWM_OUT_POWER_50PCT + sinf(cmd + M_2PI_3)*halfPower;
+    pwm3PhaseDrv[2] = PWM_OUT_POWER_50PCT + sinf(cmd - M_2PI_3)*halfPower;
+  }
 }
 
 /**
  *
  */
 static void pwmOutputUpdateRoll(void) {
-  if (g_pwmOutput[PWM_OUT_ROLL].reverse) {
+  /* Check if motor direction is reversed. */
+  if (g_pwmOutput[PWM_OUT_ROLL].flags & PWM_OUT_REV_FLAG) {
     PWMD8.tim->CCR[0] = pwm3PhaseDrv[1];
     PWMD8.tim->CCR[1] = pwm3PhaseDrv[0];
   } else {
@@ -449,7 +445,8 @@ static void pwmOutputUpdateRoll(void) {
  *
  */
 static void pwmOutputUpdatePitch(void) {
-  if (g_pwmOutput[PWM_OUT_PITCH].reverse) {
+  /* Check if motor direction is reversed. */
+  if (g_pwmOutput[PWM_OUT_PITCH].flags & PWM_OUT_REV_FLAG) {
     PWMD1.tim->CCR[0] = pwm3PhaseDrv[1];
     PWMD1.tim->CCR[1] = pwm3PhaseDrv[0];
   } else {
@@ -465,7 +462,8 @@ static void pwmOutputUpdatePitch(void) {
 static void pwmOutputUpdateYaw(void) {
   uint32_t pwmDrvYaw[6];
   /* Apply dead-time to Yaw PWM: */
-  if (g_pwmOutput[PWM_OUT_YAW].reverse) {
+  /* Check if motor direction is reversed. */
+  if (g_pwmOutput[PWM_OUT_YAW].flags & PWM_OUT_REV_FLAG) {
     pwmDrvYaw[0] = constrainLeft (pwm3PhaseDrv[1], pwmOutTIM4_5_DT) - pwmOutTIM4_5_DT; /* Yaw_B  */
     pwmDrvYaw[1] = constrainLeft (pwm3PhaseDrv[0], pwmOutTIM4_5_DT) - pwmOutTIM4_5_DT; /* YAW_A  */
     pwmDrvYaw[3] = constrainRight(pwm3PhaseDrv[1], PWM_OUT_POWER_1PCT2 * 200 -
@@ -500,7 +498,7 @@ static void pwmOutputUpdateYaw(void) {
 void pwmOutputStart(void) {
 #if STM32_PWM_USE_ADVANCED
   /* Get dead-time generator value for TIM1. */
-  uint32_t bdtr_dt = pwmOutputGetBDTRDeadTime(g_pwmOutput[PWM_OUT_ROLL].dt_id);
+  uint32_t bdtr_dt = pwmOutputGetBDTRDeadTime(g_pwmOutput[PWM_OUT_ROLL].dt_cmd_id & PWM_OUT_DT_ID_MASK);
   pwmcfg_d1_d8.bdtr |= bdtr_dt;
 #endif
   pwmStart(&PWMD1, &pwmcfg_d1_d8);
@@ -509,12 +507,15 @@ void pwmOutputStart(void) {
   /* Clear bdtr_dt value from previous calculation. */
   pwmcfg_d1_d8.bdtr &= ~bdtr_dt;
   /* Get dead-time generator value for TIM8. */
-  bdtr_dt = pwmOutputGetBDTRDeadTime(g_pwmOutput[PWM_OUT_PITCH].dt_id);
+  bdtr_dt = pwmOutputGetBDTRDeadTime(g_pwmOutput[PWM_OUT_PITCH].dt_cmd_id & PWM_OUT_DT_ID_MASK);
   pwmcfg_d1_d8.bdtr |= bdtr_dt;
 #endif
   pwmStart(&PWMD8, &pwmcfg_d1_d8);
 
-  switch (g_pwmOutput[PWM_OUT_YAW].dt_id) {
+  switch (g_pwmOutput[PWM_OUT_YAW].dt_cmd_id & PWM_OUT_DT_ID_MASK) {
+  case PWM_OUT_DT750NS:
+    pwmOutTIM4_5_DT = PWM_OUT_TIM4_5_DT_US7;
+    break;
   case PWM_OUT_DT1000NS:
     pwmOutTIM4_5_DT = PWM_OUT_TIM4_5_DT_1US;
     break;
@@ -553,26 +554,29 @@ void pwmOutputStart(void) {
 void pwmOutputUpdate(const uint8_t channel_id, float cmd) {
   switch (channel_id) {
   case PWM_OUT_PITCH:
-    if (g_pwmOutput[PWM_OUT_PITCH].cmd_id == PWM_OUT_CMD_DISABLED) {
+    if ((g_pwmOutput[PWM_OUT_PITCH].dt_cmd_id & PWM_OUT_CMD_ID_MASK) == PWM_OUT_CMD_DISABLED) {
       pwmOutputDisablePitch();
     } else {
-      pwmOutputCmdTo3PhasePWM(cmd, g_pwmOutput[PWM_OUT_PITCH].power);
+      pwmOutputCmdTo3PhasePWM(cmd, g_pwmOutput[PWM_OUT_PITCH].power,
+        g_pwmOutput[PWM_OUT_PITCH].flags & PWM_OUT_THI_FLAG);
       pwmOutputUpdatePitch();
     }
     break;
   case PWM_OUT_ROLL:
-    if (g_pwmOutput[PWM_OUT_ROLL].cmd_id == PWM_OUT_CMD_DISABLED) {
+    if ((g_pwmOutput[PWM_OUT_ROLL].dt_cmd_id & PWM_OUT_CMD_ID_MASK) == PWM_OUT_CMD_DISABLED) {
       pwmOutputDisableRoll();
     } else {
-      pwmOutputCmdTo3PhasePWM(cmd, g_pwmOutput[PWM_OUT_ROLL].power);
+      pwmOutputCmdTo3PhasePWM(cmd, g_pwmOutput[PWM_OUT_ROLL].power,
+        g_pwmOutput[PWM_OUT_ROLL].flags & PWM_OUT_THI_FLAG);
       pwmOutputUpdateRoll();
     }
     break;
   case PWM_OUT_YAW:
-    if (g_pwmOutput[PWM_OUT_YAW].cmd_id == PWM_OUT_CMD_DISABLED) {
+    if ((g_pwmOutput[PWM_OUT_YAW].dt_cmd_id & PWM_OUT_CMD_ID_MASK) == PWM_OUT_CMD_DISABLED) {
       pwmOutputDisableYaw();
     } else {
-      pwmOutputCmdTo3PhasePWM(cmd, g_pwmOutput[PWM_OUT_YAW].power);
+      pwmOutputCmdTo3PhasePWM(cmd, g_pwmOutput[PWM_OUT_YAW].power,
+        g_pwmOutput[PWM_OUT_YAW].flags & PWM_OUT_THI_FLAG);
       pwmOutputUpdateYaw();
     }
     break;

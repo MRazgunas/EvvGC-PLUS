@@ -24,6 +24,12 @@
 
 #define RAD2DEG ( 180.0f / M_PI )
 
+#define PWM_OUT_REV_FLAG        0x01
+#define PWM_OUT_THI_FLAG        0x02
+
+#define PWM_OUT_CMD_ID_MASK     0x0F
+#define PWM_OUT_DT_ID_MASK      0xF0
+
 typedef struct tagDataHdr
 {
     quint8 cmd_id;
@@ -43,9 +49,8 @@ typedef struct tagOutputSettings
 {
     quint8 power;
     quint8 num_poles;
-    quint8 reverse;
-    quint8 cmd_id;
-    quint8 dt_id;
+    quint8 flags;
+    quint8 dt_cmd_id; /* High nibble contais dead-time ID, low nibble contains command ID. */
 } __attribute__((packed)) OutputSettings, *POutputSettings;
 
 typedef struct tagInputSettings

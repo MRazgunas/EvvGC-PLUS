@@ -186,41 +186,15 @@
         <string>Outputs</string>
        </attribute>
        <layout class="QGridLayout" name="gridLayout_2">
-        <item row="1" column="5">
-         <widget class="QLabel" name="labelDeadTime">
+        <item row="1" column="6">
+         <widget class="QLabel" name="labelCommand">
           <property name="text">
-           <string>Dead Time, ns</string>
+           <string>Command</string>
           </property>
           <property name="alignment">
            <set>Qt::AlignCenter</set>
           </property>
          </widget>
-        </item>
-        <item row="3" column="0">
-         <widget class="QLabel" name="labelRoll_2">
-          <property name="sizePolicy">
-           <sizepolicy hsizetype="Fixed" vsizetype="Preferred">
-            <horstretch>0</horstretch>
-            <verstretch>0</verstretch>
-           </sizepolicy>
-          </property>
-          <property name="text">
-           <string>Roll:</string>
-          </property>
-         </widget>
-        </item>
-        <item row="5" column="0">
-         <spacer name="verticalSpacer_2">
-          <property name="orientation">
-           <enum>Qt::Vertical</enum>
-          </property>
-          <property name="sizeHint" stdset="0">
-           <size>
-            <width>20</width>
-            <height>40</height>
-           </size>
-          </property>
-         </spacer>
         </item>
         <item row="4" column="0">
          <widget class="QLabel" name="labelYaw_2">
@@ -235,113 +209,19 @@
           </property>
          </widget>
         </item>
-        <item row="1" column="4">
-         <widget class="QLabel" name="labelCommand">
-          <property name="text">
-           <string>Command</string>
-          </property>
-          <property name="alignment">
-           <set>Qt::AlignCenter</set>
-          </property>
-         </widget>
-        </item>
-        <item row="1" column="2">
-         <widget class="QLabel" name="labelNumPoles">
-          <property name="text">
-           <string>Number of Poles</string>
-          </property>
-          <property name="alignment">
-           <set>Qt::AlignCenter</set>
-          </property>
-         </widget>
-        </item>
-        <item row="2" column="0">
-         <widget class="QLabel" name="labelPitch_2">
-          <property name="sizePolicy">
-           <sizepolicy hsizetype="Fixed" vsizetype="Preferred">
-            <horstretch>0</horstretch>
-            <verstretch>0</verstretch>
-           </sizepolicy>
-          </property>
-          <property name="text">
-           <string>Pitch:</string>
-          </property>
-         </widget>
-        </item>
-        <item row="4" column="1">
-         <widget class="QSpinBox" name="spinYawPower">
-          <property name="maximum">
-           <number>100</number>
-          </property>
-         </widget>
-        </item>
-        <item row="1" column="1">
-         <widget class="QLabel" name="labelPower">
-          <property name="text">
-           <string>Motor Power, %</string>
-          </property>
-          <property name="alignment">
-           <set>Qt::AlignCenter</set>
-          </property>
-         </widget>
-        </item>
-        <item row="4" column="2">
-         <widget class="QSpinBox" name="spinYawNumPoles">
-          <property name="minimum">
-           <number>12</number>
-          </property>
-          <property name="maximum">
-           <number>48</number>
-          </property>
-          <property name="singleStep">
-           <number>2</number>
-          </property>
-          <property name="value">
-           <number>14</number>
-          </property>
-         </widget>
-        </item>
-        <item row="4" column="4">
-         <widget class="QComboBox" name="comboYawCommand">
+        <item row="3" column="7">
+         <widget class="QComboBox" name="comboRollDeadTime">
           <property name="sizePolicy">
            <sizepolicy hsizetype="Expanding" vsizetype="Fixed">
             <horstretch>0</horstretch>
             <verstretch>0</verstretch>
            </sizepolicy>
           </property>
-          <property name="maxVisibleItems">
-           <number>4</number>
-          </property>
           <item>
            <property name="text">
-            <string>Pitch</string>
+            <string>750 ns</string>
            </property>
           </item>
-          <item>
-           <property name="text">
-            <string>Roll</string>
-           </property>
-          </item>
-          <item>
-           <property name="text">
-            <string>Yaw</string>
-           </property>
-          </item>
-          <item>
-           <property name="text">
-            <string>Disabled</string>
-           </property>
-          </item>
-         </widget>
-        </item>
-        <item row="4" column="5">
-         <widget class="QComboBox" name="comboYawDeadTime">
-          <property name="sizePolicy">
-           <sizepolicy hsizetype="Expanding" vsizetype="Fixed">
-            <horstretch>0</horstretch>
-            <verstretch>0</verstretch>
-           </sizepolicy>
-          </property>
           <item>
            <property name="text">
             <string>1000 ns</string>
@@ -369,56 +249,7 @@
           </item>
          </widget>
         </item>
-        <item row="4" column="3">
-         <widget class="QCheckBox" name="checkYawRev">
-          <property name="sizePolicy">
-           <sizepolicy hsizetype="Fixed" vsizetype="Preferred">
-            <horstretch>0</horstretch>
-            <verstretch>0</verstretch>
-           </sizepolicy>
-          </property>
-          <property name="text">
-           <string>Reverse</string>
-          </property>
-         </widget>
-        </item>
-        <item row="3" column="1">
-         <widget class="QSpinBox" name="spinRollPower">
-          <property name="maximum">
-           <number>100</number>
-          </property>
-         </widget>
-        </item>
-        <item row="3" column="2">
-         <widget class="QSpinBox" name="spinRollNumPoles">
-          <property name="minimum">
-           <number>12</number>
-          </property>
-          <property name="maximum">
-           <number>48</number>
-          </property>
-          <property name="singleStep">
-           <number>2</number>
-          </property>
-          <property name="value">
-           <number>14</number>
-          </property>
-         </widget>
-        </item>
-        <item row="3" column="3">
-         <widget class="QCheckBox" name="checkRollRev">
-          <property name="sizePolicy">
-           <sizepolicy hsizetype="Fixed" vsizetype="Preferred">
-            <horstretch>0</horstretch>
-            <verstretch>0</verstretch>
-           </sizepolicy>
-          </property>
-          <property name="text">
-           <string>Reverse</string>
-          </property>
-         </widget>
-        </item>
-        <item row="3" column="4">
+        <item row="3" column="6">
          <widget class="QComboBox" name="comboRollCommand">
           <property name="sizePolicy">
            <sizepolicy hsizetype="Expanding" vsizetype="Fixed">
@@ -454,78 +285,7 @@
           </item>
          </widget>
         </item>
-        <item row="3" column="5">
-         <widget class="QComboBox" name="comboRollDeadTime">
-          <property name="sizePolicy">
-           <sizepolicy hsizetype="Expanding" vsizetype="Fixed">
-            <horstretch>0</horstretch>
-            <verstretch>0</verstretch>
-           </sizepolicy>
-          </property>
-          <item>
-           <property name="text">
-            <string>1000 ns</string>
-           </property>
-          </item>
-          <item>
-           <property name="text">
-            <string>2000 ns</string>
-           </property>
-          </item>
-          <item>
-           <property name="text">
-            <string>3000 ns</string>
-           </property>
-          </item>
-          <item>
-           <property name="text">
-            <string>4000 ns</string>
-           </property>
-          </item>
-          <item>
-           <property name="text">
-            <string>5000 ns</string>
-           </property>
-          </item>
-         </widget>
-        </item>
-        <item row="2" column="1">
-         <widget class="QSpinBox" name="spinPitchPower">
-          <property name="maximum">
-           <number>100</number>
-          </property>
-         </widget>
-        </item>
-        <item row="2" column="2">
-         <widget class="QSpinBox" name="spinPitchNumPoles">
-          <property name="minimum">
-           <number>12</number>
-          </property>
-          <property name="maximum">
-           <number>48</number>
-          </property>
-          <property name="singleStep">
-           <number>2</number>
-          </property>
-          <property name="value">
-           <number>14</number>
-          </property>
-         </widget>
-        </item>
-        <item row="2" column="3">
-         <widget class="QCheckBox" name="checkPitchRev">
-          <property name="sizePolicy">
-           <sizepolicy hsizetype="Fixed" vsizetype="Preferred">
-            <horstretch>0</horstretch>
-            <verstretch>0</verstretch>
-           </sizepolicy>
-          </property>
-          <property name="text">
-           <string>Reverse</string>
-          </property>
-         </widget>
-        </item>
-        <item row="2" column="4">
+        <item row="2" column="6">
          <widget class="QComboBox" name="comboPitchCommand">
           <property name="sizePolicy">
            <sizepolicy hsizetype="Expanding" vsizetype="Fixed">
@@ -558,7 +318,7 @@
           </item>
          </widget>
         </item>
-        <item row="2" column="5">
+        <item row="2" column="7">
          <widget class="QComboBox" name="comboPitchDeadTime">
           <property name="sizePolicy">
            <sizepolicy hsizetype="Expanding" vsizetype="Fixed">
@@ -566,6 +326,11 @@
             <verstretch>0</verstretch>
            </sizepolicy>
           </property>
+          <item>
+           <property name="text">
+            <string>750 ns</string>
+           </property>
+          </item>
           <item>
            <property name="text">
             <string>1000 ns</string>
@@ -591,6 +356,295 @@
             <string>5000 ns</string>
            </property>
           </item>
+         </widget>
+        </item>
+        <item row="2" column="4">
+         <widget class="QCheckBox" name="checkPitchRev">
+          <property name="sizePolicy">
+           <sizepolicy hsizetype="Fixed" vsizetype="Preferred">
+            <horstretch>0</horstretch>
+            <verstretch>0</verstretch>
+           </sizepolicy>
+          </property>
+          <property name="text">
+           <string>Rev.</string>
+          </property>
+         </widget>
+        </item>
+        <item row="2" column="3">
+         <widget class="QSpinBox" name="spinPitchNumPoles">
+          <property name="minimum">
+           <number>12</number>
+          </property>
+          <property name="maximum">
+           <number>48</number>
+          </property>
+          <property name="singleStep">
+           <number>2</number>
+          </property>
+          <property name="value">
+           <number>14</number>
+          </property>
+         </widget>
+        </item>
+        <item row="2" column="1">
+         <widget class="QSpinBox" name="spinPitchPower">
+          <property name="maximum">
+           <number>100</number>
+          </property>
+         </widget>
+        </item>
+        <item row="2" column="0">
+         <widget class="QLabel" name="labelPitch_2">
+          <property name="sizePolicy">
+           <sizepolicy hsizetype="Fixed" vsizetype="Preferred">
+            <horstretch>0</horstretch>
+            <verstretch>0</verstretch>
+           </sizepolicy>
+          </property>
+          <property name="text">
+           <string>Pitch:</string>
+          </property>
+         </widget>
+        </item>
+        <item row="1" column="3">
+         <widget class="QLabel" name="labelNumPoles">
+          <property name="text">
+           <string>Poles, N</string>
+          </property>
+          <property name="alignment">
+           <set>Qt::AlignCenter</set>
+          </property>
+         </widget>
+        </item>
+        <item row="3" column="4">
+         <widget class="QCheckBox" name="checkRollRev">
+          <property name="sizePolicy">
+           <sizepolicy hsizetype="Fixed" vsizetype="Preferred">
+            <horstretch>0</horstretch>
+            <verstretch>0</verstretch>
+           </sizepolicy>
+          </property>
+          <property name="text">
+           <string>Rev.</string>
+          </property>
+         </widget>
+        </item>
+        <item row="3" column="3">
+         <widget class="QSpinBox" name="spinRollNumPoles">
+          <property name="minimum">
+           <number>12</number>
+          </property>
+          <property name="maximum">
+           <number>48</number>
+          </property>
+          <property name="singleStep">
+           <number>2</number>
+          </property>
+          <property name="value">
+           <number>14</number>
+          </property>
+         </widget>
+        </item>
+        <item row="4" column="4">
+         <widget class="QCheckBox" name="checkYawRev">
+          <property name="sizePolicy">
+           <sizepolicy hsizetype="Fixed" vsizetype="Preferred">
+            <horstretch>0</horstretch>
+            <verstretch>0</verstretch>
+           </sizepolicy>
+          </property>
+          <property name="text">
+           <string>Rev.</string>
+          </property>
+         </widget>
+        </item>
+        <item row="3" column="1">
+         <widget class="QSpinBox" name="spinRollPower">
+          <property name="maximum">
+           <number>100</number>
+          </property>
+         </widget>
+        </item>
+        <item row="4" column="1">
+         <widget class="QSpinBox" name="spinYawPower">
+          <property name="maximum">
+           <number>100</number>
+          </property>
+         </widget>
+        </item>
+        <item row="4" column="6">
+         <widget class="QComboBox" name="comboYawCommand">
+          <property name="sizePolicy">
+           <sizepolicy hsizetype="Expanding" vsizetype="Fixed">
+            <horstretch>0</horstretch>
+            <verstretch>0</verstretch>
+           </sizepolicy>
+          </property>
+          <property name="maxVisibleItems">
+           <number>4</number>
+          </property>
+          <item>
+           <property name="text">
+            <string>Pitch</string>
+           </property>
+          </item>
+          <item>
+           <property name="text">
+            <string>Roll</string>
+           </property>
+          </item>
+          <item>
+           <property name="text">
+            <string>Yaw</string>
+           </property>
+          </item>
+          <item>
+           <property name="text">
+            <string>Disabled</string>
+           </property>
+          </item>
+         </widget>
+        </item>
+        <item row="1" column="1">
+         <widget class="QLabel" name="labelPower">
+          <property name="text">
+           <string>Power, %</string>
+          </property>
+          <property name="alignment">
+           <set>Qt::AlignCenter</set>
+          </property>
+         </widget>
+        </item>
+        <item row="4" column="3">
+         <widget class="QSpinBox" name="spinYawNumPoles">
+          <property name="minimum">
+           <number>12</number>
+          </property>
+          <property name="maximum">
+           <number>48</number>
+          </property>
+          <property name="singleStep">
+           <number>2</number>
+          </property>
+          <property name="value">
+           <number>14</number>
+          </property>
+         </widget>
+        </item>
+        <item row="1" column="7">
+         <widget class="QLabel" name="labelDeadTime">
+          <property name="text">
+           <string>Dead Time, ns</string>
+          </property>
+          <property name="alignment">
+           <set>Qt::AlignCenter</set>
+          </property>
+         </widget>
+        </item>
+        <item row="3" column="0">
+         <widget class="QLabel" name="labelRoll_2">
+          <property name="sizePolicy">
+           <sizepolicy hsizetype="Fixed" vsizetype="Preferred">
+            <horstretch>0</horstretch>
+            <verstretch>0</verstretch>
+           </sizepolicy>
+          </property>
+          <property name="text">
+           <string>Roll:</string>
+          </property>
+         </widget>
+        </item>
+        <item row="4" column="7">
+         <widget class="QComboBox" name="comboYawDeadTime">
+          <property name="sizePolicy">
+           <sizepolicy hsizetype="Expanding" vsizetype="Fixed">
+            <horstretch>0</horstretch>
+            <verstretch>0</verstretch>
+           </sizepolicy>
+          </property>
+          <item>
+           <property name="text">
+            <string>750 ns</string>
+           </property>
+          </item>
+          <item>
+           <property name="text">
+            <string>1000 ns</string>
+           </property>
+          </item>
+          <item>
+           <property name="text">
+            <string>2000 ns</string>
+           </property>
+          </item>
+          <item>
+           <property name="text">
+            <string>3000 ns</string>
+           </property>
+          </item>
+          <item>
+           <property name="text">
+            <string>4000 ns</string>
+           </property>
+          </item>
+          <item>
+           <property name="text">
+            <string>5000 ns</string>
+           </property>
+          </item>
+         </widget>
+        </item>
+        <item row="5" column="0">
+         <spacer name="verticalSpacer_2">
+          <property name="orientation">
+           <enum>Qt::Vertical</enum>
+          </property>
+          <property name="sizeHint" stdset="0">
+           <size>
+            <width>20</width>
+            <height>40</height>
+           </size>
+          </property>
+         </spacer>
+        </item>
+        <item row="2" column="5">
+         <widget class="QCheckBox" name="checkPitchTHIEnable">
+          <property name="sizePolicy">
+           <sizepolicy hsizetype="Fixed" vsizetype="Fixed">
+            <horstretch>0</horstretch>
+            <verstretch>0</verstretch>
+           </sizepolicy>
+          </property>
+          <property name="text">
+           <string>THI</string>
+          </property>
+         </widget>
+        </item>
+        <item row="3" column="5">
+         <widget class="QCheckBox" name="checkRollTHIEnable">
+          <property name="sizePolicy">
+           <sizepolicy hsizetype="Fixed" vsizetype="Fixed">
+            <horstretch>0</horstretch>
+            <verstretch>0</verstretch>
+           </sizepolicy>
+          </property>
+          <property name="text">
+           <string>THI</string>
+          </property>
+         </widget>
+        </item>
+        <item row="4" column="5">
+         <widget class="QCheckBox" name="checkYawTHIEnable">
+          <property name="sizePolicy">
+           <sizepolicy hsizetype="Fixed" vsizetype="Fixed">
+            <horstretch>0</horstretch>
+            <verstretch>0</verstretch>
+           </sizepolicy>
+          </property>
+          <property name="text">
+           <string>THI</string>
+          </property>
          </widget>
         </item>
        </layout>
@@ -1335,7 +1389,7 @@
             </widget>
            </item>
            <item row="0" column="0">
-            <widget class="QLabel" name="labelSensor1AxisTOP">
+            <widget class="QLabel" name="labelSensor1AxisTop">
              <property name="text">
               <string>Axis TOP</string>
              </property>
@@ -1384,7 +1438,7 @@
           </property>
          </spacer>
         </item>
-        <item row="0" column="1">
+        <item row="0" column="2">
          <spacer name="horizontalSpacer">
           <property name="orientation">
            <enum>Qt::Horizontal</enum>
@@ -1396,6 +1450,123 @@
            </size>
           </property>
          </spacer>
+        </item>
+        <item row="0" column="1">
+         <widget class="QGroupBox" name="groupSensor2">
+          <property name="title">
+           <string>Sensor2 (none):</string>
+          </property>
+          <layout class="QGridLayout" name="gridLayout_7">
+           <item row="0" column="1">
+            <widget class="QComboBox" name="comboSensor2AxisTOP">
+             <property name="enabled">
+              <bool>false</bool>
+             </property>
+             <item>
+              <property name="text">
+               <string>+X</string>
+              </property>
+             </item>
+             <item>
+              <property name="text">
+               <string>+Y</string>
+              </property>
+             </item>
+             <item>
+              <property name="text">
+               <string>+Z</string>
+              </property>
+             </item>
+             <item>
+              <property name="text">
+               <string>-X</string>
+              </property>
+             </item>
+             <item>
+              <property name="text">
+               <string>-Y</string>
+              </property>
+             </item>
+             <item>
+              <property name="text">
+               <string>-Z</string>
+              </property>
+             </item>
+            </widget>
+           </item>
+           <item row="1" column="0">
+            <widget class="QLabel" name="labelSensor2AxisRight">
+             <property name="text">
+              <string>Axis RIGHT</string>
+             </property>
+            </widget>
+           </item>
+           <item row="0" column="0">
+            <widget class="QLabel" name="labelSensor2AxisTop">
+             <property name="text">
+              <string>Axis TOP</string>
+             </property>
+            </widget>
+           </item>
+           <item row="1" column="1">
+            <widget class="QComboBox" name="comboSensor2AxisRIGHT">
+             <property name="enabled">
+              <bool>false</bool>
+             </property>
+             <item>
+              <property name="text">
+               <string>+X</string>
+              </property>
+             </item>
+             <item>
+              <property name="text">
+               <string>+Y</string>
+              </property>
+             </item>
+             <item>
+              <property name="text">
+               <string>+Z</string>
+              </property>
+             </item>
+             <item>
+              <property name="text">
+               <string>-X</string>
+              </property>
+             </item>
+             <item>
+              <property name="text">
+               <string>-Y</string>
+              </property>
+             </item>
+             <item>
+              <property name="text">
+               <string>-Z</string>
+              </property>
+             </item>
+            </widget>
+           </item>
+           <item row="4" column="0" colspan="2">
+            <widget class="QPushButton" name="pushSensor2AccCalibrate">
+             <property name="enabled">
+              <bool>false</bool>
+             </property>
+             <property name="text">
+              <string>Accel Calibrate</string>
+             </property>
+            </widget>
+           </item>
+           <item row="5" column="0" colspan="2">
+            <widget class="QPushButton" name="pushSensor2GyroCalibrate">
+             <property name="enabled">
+              <bool>false</bool>
+             </property>
+             <property name="text">
+              <string>Gyro Calibrate</string>
+             </property>
+            </widget>
+           </item>
+          </layout>
+         </widget>
         </item>
        </layout>
       </widget>
@@ -1531,6 +1702,7 @@
    <addaction name="actionHandleConnection"/>
    <addaction name="separator"/>
    <addaction name="actionRead"/>
+   <addaction name="actionSet"/>
    <addaction name="actionSave"/>
   </widget>
   <widget class="QStatusBar" name="statusBar"/>
@@ -1583,7 +1755,6 @@
   </customwidget>
  </customwidgets>
  <tabstops>
-  <tabstop>tabWidget</tabstop>
   <tabstop>spinPitch_P</tabstop>
   <tabstop>spinPitch_I</tabstop>
   <tabstop>spinPitch_D</tabstop>

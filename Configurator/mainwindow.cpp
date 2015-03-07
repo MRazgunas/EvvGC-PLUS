@@ -16,19 +16,16 @@ static PIDSettings PID[3] = {
 static OutputSettings outSettings[3] = {
     {0,     /* Power, %        */
      14,    /* Number of poles */
-     0,     /* Reverse         */
-     3,     /* Command ID      */
-     4},    /* Dead-time ID    */
+     0x00,  /* Flags           */
+     0x53}, /* DTime-Cmd ID    */
     {0,     /* Power, %        */
      14,    /* Number of poles */
-     0,     /* Reverse         */
-     3,     /* Command ID      */
-     4},    /* Dead-time ID    */
+     0x00,  /* Flags           */
+     0x53}, /* DTime-Cmd ID    */
     {0,     /* Power, %        */
      14,    /* Number of poles */
-     0,     /* Reverse         */
-     3,     /* Command ID      */
-     4}     /* Dead-time ID    */
+     0x00,  /* Flags           */
+     0x53}  /* DTime-Cmd ID    */
 };
 
 static InputSettings inSettings[3] = {
@@ -153,24 +150,11 @@ MainWindow::MainWindow(QWidget *parent) :
 
     FillPortsInfo();
 
-    ui->comboPitchCommand->setCurrentIndex(3);
-    ui->comboRollCommand->setCurrentIndex(3);
-    ui->comboYawCommand->setCurrentIndex(3);
-
-    ui->comboPitchDeadTime->setCurrentIndex(4);
-    ui->comboRollDeadTime->setCurrentIndex(4);
-    ui->comboYawDeadTime->setCurrentIndex(4);
-
-    ui->comboInputChannelPitch->setCurrentIndex(5);
-    ui->comboInputChannelRoll->setCurrentIndex(5);
-    ui->comboInputChannelYaw->setCurrentIndex(5);
-
-    ui->comboInputModePitch->setCurrentIndex(0);
-    ui->comboInputModeRoll->setCurrentIndex(0);
-    ui->comboInputModeYaw->setCurrentIndex(0);
-
-    ui->comboSensor1AxisTOP->setCurrentIndex(2);
-    ui->comboSensor1AxisRIGHT->setCurrentIndex(3);
+    SetStabilizationSettings();
+    SetOutputSettings();
+    SetInputSettings();
+    SetInputModeSettings();
+    SetSensorSettings();
 
     ui->comboData->setCurrentIndex(0);
 
@@ -363,14 +347,14 @@ void MainWindow::HandleApplySettings()
     if (GetOutputSettings()) {
         /* Write output settings; */
         qDebug() << "Pitch Pwr:" << outSettings[0].power << "NPoles:" << outSettings[0].num_poles \
-                 << "Rev:" << outSettings[0].reverse << "Cmd:" << outSettings[0].cmd_id \
-                 << "DT:" << outSettings[0].dt_id;
+                 << "Rev:" << ((outSettings[0].flags & PWM_OUT_REV_FLAG) > 0) << "THI:" << ((outSettings[0].flags & PWM_OUT_THI_FLAG) > 0) \
+                 << "Cmd:" << (outSettings[0].dt_cmd_id & PWM_OUT_CMD_ID_MASK) << "DT:" << (outSettings[0].dt_cmd_id >> 4);
         qDebug() << "Roll  Pwr:" << outSettings[1].power << "NPoles:" << outSettings[1].num_poles \
-                 << "Rev:" << outSettings[1].reverse << "Cmd:" << outSettings[1].cmd_id \
-                 << "DT:" << outSettings[1].dt_id;
+                 << "Rev:" << ((outSettings[1].flags & PWM_OUT_REV_FLAG) > 0) << "THI:" << ((outSettings[1].flags & PWM_OUT_THI_FLAG) > 0) \
+                 << "Cmd:" << (outSettings[1].dt_cmd_id & PWM_OUT_CMD_ID_MASK) << "DT:" << (outSettings[1].dt_cmd_id >> 4);
         qDebug() << "Yaw   Pwr:" << outSettings[2].power << "NPoles:" << outSettings[2].num_poles \
-                 << "Rev:" << outSettings[2].reverse << "Cmd:" << outSettings[2].cmd_id \
-                 << "DT:" << outSettings[2].dt_id;
+                 << "Rev:" << ((outSettings[2].flags & PWM_OUT_REV_FLAG) > 0) << "THI:" << ((outSettings[2].flags & PWM_OUT_THI_FLAG) > 0) \
+                 << "Cmd:" << (outSettings[2].dt_cmd_id & PWM_OUT_CMD_ID_MASK) << "DT:" << (outSettings[2].dt_cmd_id >> 4);
         qDebug() << "Size:" << sizeof(outSettings);
 
         /* Clean data buffer for zero-padded crc32 checksum calculation. */
@@ -677,9 +661,9 @@ void MainWindow::ProcessSerialCommands(const PDataHdr pHdr)
     case 'h':
         if ((pHdr->size == sizeof(float) * 3) && (pHdr->crc == GetCRC32Checksum(pHdr))) {
             memcpy((void *)motorOffset, (void *)pHdr->data, pHdr->size);
-            ui->labelOffsetPitch->setText(tr("%1").arg(round(motorOffset[0]*RAD2DEG/(outSettings[0].num_poles >> 1))));
-            ui->labelOffsetRoll->setText(tr("%1").arg(round(motorOffset[1]*RAD2DEG/(outSettings[1].num_poles >> 1))));
-            ui->labelOffsetYaw->setText(tr("%1").arg(round(motorOffset[2]*RAD2DEG/(outSettings[2].num_poles >> 1))));
+            ui->labelOffsetPitch->setText(tr("%1").arg(round(motorOffset[0]*RAD2DEG)));
+            ui->labelOffsetRoll->setText(tr("%1").arg(round(motorOffset[1]*RAD2DEG)));
+            ui->labelOffsetYaw->setText(tr("%1").arg(round(motorOffset[2]*RAD2DEG)));
         } else {
             qDebug() << "Motor offset CRC32 mismatch:" << hex << pHdr->crc << "|" << GetCRC32Checksum(pHdr);
         }
@@ -893,6 +877,7 @@ bool MainWindow::GetOutputSettings()
 {
     bool fUpdated = false;
     quint8 temp;
+    quint8 temp2 = 0;
 
     /* PITCH */
     temp = ui->spinPitchPower->value();
@@ -906,20 +891,27 @@ bool MainWindow::GetOutputSettings()
         fUpdated = true;
     }
     temp = ui->checkPitchRev->isChecked();
-    if (temp != outSettings[0].reverse) {
-        outSettings[0].reverse = temp;
+    if (temp != (outSettings[0].flags & PWM_OUT_REV_FLAG)) {
         fUpdated = true;
     }
+    temp2 = temp;
+    temp = ui->checkPitchTHIEnable->isChecked() << 1;
+    if (temp != (outSettings[0].flags & PWM_OUT_THI_FLAG)) {
+        fUpdated = true;
+    }
+    outSettings[0].flags = temp | temp2;
+    temp2 = 0;
     temp = ui->comboPitchCommand->currentIndex();
-    if (temp != outSettings[0].cmd_id) {
-        outSettings[0].cmd_id = temp;
+    if (temp != (outSettings[0].dt_cmd_id & PWM_OUT_CMD_ID_MASK)) {
         fUpdated = true;
     }
-    temp = ui->comboPitchDeadTime->currentIndex();
-    if (temp != outSettings[0].dt_id) {
-        outSettings[0].dt_id = temp;
+    temp2 = temp;
+    temp = ui->comboPitchDeadTime->currentIndex() << 4;
+    if (temp != (outSettings[0].dt_cmd_id & PWM_OUT_DT_ID_MASK)) {
         fUpdated = true;
     }
+    outSettings[0].dt_cmd_id = temp | temp2;
+    temp2 = 0;
 
     /* ROLL */
     temp = ui->spinRollPower->value();
@@ -933,20 +925,27 @@ bool MainWindow::GetOutputSettings()
         fUpdated = true;
     }
     temp = ui->checkRollRev->isChecked();
-    if (temp != outSettings[1].reverse) {
-        outSettings[1].reverse = temp;
+    if (temp != (outSettings[1].flags & PWM_OUT_REV_FLAG)) {
         fUpdated = true;
     }
+    temp2 = temp;
+    temp = ui->checkRollTHIEnable->isChecked() << 1;
+    if (temp != (outSettings[1].flags & PWM_OUT_THI_FLAG)) {
+        fUpdated = true;
+    }
+    outSettings[1].flags = temp | temp2;
+    temp2 = 0;
     temp = ui->comboRollCommand->currentIndex();
-    if (temp != outSettings[1].cmd_id) {
-        outSettings[1].cmd_id = temp;
+    if (temp != (outSettings[1].dt_cmd_id & PWM_OUT_CMD_ID_MASK)) {
         fUpdated = true;
     }
-    temp = ui->comboRollDeadTime->currentIndex();
-    if (temp != outSettings[1].dt_id) {
-        outSettings[1].dt_id = temp;
+    temp2 = temp;
+    temp = ui->comboRollDeadTime->currentIndex() << 4;
+    if (temp != (outSettings[1].dt_cmd_id & PWM_OUT_DT_ID_MASK)) {
         fUpdated = true;
     }
+    outSettings[1].dt_cmd_id = temp | temp2;
+    temp2 = 0;
 
     /* YAW */
     temp = ui->spinYawPower->value();
@@ -960,20 +959,26 @@ bool MainWindow::GetOutputSettings()
         fUpdated = true;
     }
     temp = ui->checkYawRev->isChecked();
-    if (temp != outSettings[2].reverse) {
-        outSettings[2].reverse = temp;
+    if (temp != (outSettings[2].flags & PWM_OUT_REV_FLAG)) {
         fUpdated = true;
     }
+    temp2 = temp;
+    temp = ui->checkYawTHIEnable->isChecked() << 1;
+    if (temp != (outSettings[2].flags & PWM_OUT_THI_FLAG)) {
+        fUpdated = true;
+    }
+    outSettings[2].flags = temp | temp2;
+    temp2 = 0;
     temp = ui->comboYawCommand->currentIndex();
-    if (temp != outSettings[2].cmd_id) {
-        outSettings[2].cmd_id = temp;
+    if (temp != (outSettings[2].dt_cmd_id & PWM_OUT_CMD_ID_MASK)) {
         fUpdated = true;
     }
-    temp = ui->comboYawDeadTime->currentIndex();
-    if (temp != outSettings[2].dt_id) {
-        outSettings[2].dt_id = temp;
+    temp2 = temp;
+    temp = ui->comboYawDeadTime->currentIndex() << 4;
+    if (temp != (outSettings[2].dt_cmd_id & PWM_OUT_DT_ID_MASK)) {
         fUpdated = true;
     }
+    outSettings[2].dt_cmd_id = temp | temp2;
     return fUpdated;
 }
 
@@ -986,21 +991,24 @@ bool MainWindow::SetOutputSettings()
     /* PITCH */
     ui->spinPitchPower->setValue(outSettings[0].power);
     ui->spinPitchNumPoles->setValue(outSettings[0].num_poles);
-    ui->checkPitchRev->setChecked(outSettings[0].reverse > 0);
-    ui->comboPitchCommand->setCurrentIndex(outSettings[0].cmd_id);
-    ui->comboPitchDeadTime->setCurrentIndex(outSettings[0].dt_id);
+    ui->checkPitchRev->setChecked(outSettings[0].flags & PWM_OUT_REV_FLAG);
+    ui->checkPitchTHIEnable->setChecked(outSettings[0].flags & PWM_OUT_THI_FLAG);
+    ui->comboPitchCommand->setCurrentIndex(outSettings[0].dt_cmd_id & 0x0F);
+    ui->comboPitchDeadTime->setCurrentIndex(outSettings[0].dt_cmd_id >> 4);
     /* ROLL */
     ui->spinRollPower->setValue(outSettings[1].power);
     ui->spinRollNumPoles->setValue(outSettings[1].num_poles);
-    ui->checkRollRev->setChecked(outSettings[1].reverse > 0);
-    ui->comboRollCommand->setCurrentIndex(outSettings[1].cmd_id);
-    ui->comboRollDeadTime->setCurrentIndex(outSettings[1].dt_id);
+    ui->checkRollRev->setChecked(outSettings[1].flags & PWM_OUT_REV_FLAG);
+    ui->checkRollTHIEnable->setChecked(outSettings[1].flags & PWM_OUT_THI_FLAG);
+    ui->comboRollCommand->setCurrentIndex(outSettings[1].dt_cmd_id & 0x0F);
+    ui->comboRollDeadTime->setCurrentIndex(outSettings[1].dt_cmd_id >> 4);
     /* YAW */
     ui->spinYawPower->setValue(outSettings[2].power);
     ui->spinYawNumPoles->setValue(outSettings[2].num_poles);
-    ui->checkYawRev->setChecked(outSettings[2].reverse > 0);
-    ui->comboYawCommand->setCurrentIndex(outSettings[2].cmd_id);
-    ui->comboYawDeadTime->setCurrentIndex(outSettings[2].dt_id);
+    ui->checkYawRev->setChecked(outSettings[2].flags & PWM_OUT_REV_FLAG);
+    ui->checkYawTHIEnable->setChecked(outSettings[2].flags & PWM_OUT_THI_FLAG);
+    ui->comboYawCommand->setCurrentIndex(outSettings[2].dt_cmd_id & 0x0F);
+    ui->comboYawDeadTime->setCurrentIndex(outSettings[2].dt_cmd_id >> 4);
     return true;
 }
 
