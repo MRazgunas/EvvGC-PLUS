@@ -45,7 +45,11 @@
  *          0x08xxxxxx is omitted.
  */
 #if !defined(CORTEX_VTOR_INIT) || defined(__DOXYGEN__)
-#define CORTEX_VTOR_INIT                0x00000000
+#if defined(USE_USB_BL)
+  #define CORTEX_VTOR_INIT              0x00004000
+#else
+  #define CORTEX_VTOR_INIT              0x00000000
+#endif
 #endif
 
 /**
@@ -54,7 +58,7 @@
  *          setting also defines the system tick time unit.
  */
 #if !defined(CH_FREQUENCY) || defined(__DOXYGEN__)
-#define CH_FREQUENCY                    1000
+#define CH_FREQUENCY                    2000
 #endif
 
 /**

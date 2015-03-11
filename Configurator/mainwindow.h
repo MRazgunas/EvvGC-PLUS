@@ -30,6 +30,11 @@
 #define PWM_OUT_CMD_ID_MASK     0x0F
 #define PWM_OUT_DT_ID_MASK      0xF0
 
+#define SENSOR1_AXIS_DIR_POS    0x08
+#define SENSOR1_AXIS_ID_MASK    0x07
+#define SENSOR2_AXIS_DIR_POS    0x80
+#define SENSOR2_AXIS_ID_MASK    0x70
+
 typedef struct tagDataHdr
 {
     quint8 cmd_id;
@@ -69,12 +74,6 @@ typedef struct tagInputModeSettings
     quint8 speed;
     quint8 mode_id;
 } __attribute__((packed)) InputModeSettings, *PInputModeSettings;
-
-typedef struct tagSensorSettings
-{
-    quint8 axis_id;
-    qint8 axis_dir;
-} __attribute__((packed)) SensorSettings, *PSensorSettings;
 
 typedef struct tagI2CErrorStruct
 {

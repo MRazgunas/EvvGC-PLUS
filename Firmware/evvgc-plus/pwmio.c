@@ -131,17 +131,17 @@ PWMOutputStruct g_pwmOutput[3] = {
  * Default settings for generic inputs.
  */
 MixedInputStruct g_mixedInput[3] = {
-  {0,                      /* Min value;      */
-   0,                      /* Mid value;      */
-   0,                      /* Max value;      */
+  {1000,                   /* Min value;      */
+   1500,                   /* Mid value;      */
+   2000,                   /* Max value;      */
    INPUT_CHANNEL_DISABLED},/* Input channel#; */
-  {0,                      /* Min value;      */
-   0,                      /* Mid value;      */
-   0,                      /* Max value;      */
+  {1000,                   /* Min value;      */
+   1500,                   /* Mid value;      */
+   2000,                   /* Max value;      */
    INPUT_CHANNEL_DISABLED},/* Input channel#; */
-  {0,                      /* Min value;      */
-   0,                      /* Mid value;      */
-   0,                      /* Max value;      */
+  {1000,                   /* Min value;      */
+   1500,                   /* Mid value;      */
+   2000,                   /* Max value;      */
    INPUT_CHANNEL_DISABLED} /* Input channel#; */
 };
 

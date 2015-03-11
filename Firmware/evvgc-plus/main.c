@@ -29,7 +29,8 @@
 #define TELEMETRY_SLEEP_MS      20
 
 #define MPU6050_LOW_DETECTED    0x01
-#define EEPROM_24C02_DETECTED   0x02
+#define MPU6050_HIGH_DETECTED   0x02
+#define EEPROM_24C02_DETECTED   0x04
 
 uint32_t g_boardStatus = 0;
 uint8_t g_fCalibrating = FALSE;
@@ -46,7 +47,8 @@ static const I2CConfig i2cfg_d2 = {
 SerialUSBDriver SDU1;
 
 /* Binary semaphore indicating that new data is ready to be processed. */
-static BinarySemaphore bsemNewDataReady;
+static BinarySemaphore bsemIMU1DataReady;
+static BinarySemaphore bsemIMU2DataReady;
 
 /**
  * Red LED blinker thread. Times are in milliseconds.
@@ -70,7 +72,7 @@ static msg_t BlinkerThread(void *arg) {
 
 /**
  * MPU6050 data polling thread. Times are in milliseconds.
- * This thread requests a new data from MPU6050 every 2 ms (@500 Hz).
+ * This thread requests a new data from MPU6050 every 1.5 ms (@666 Hz).
  */
 static WORKING_AREA(waPollMPU6050Thread, 128);
 static msg_t PollMPU6050Thread(void *arg) {
@@ -78,11 +80,14 @@ static msg_t PollMPU6050Thread(void *arg) {
   (void)arg;
   time = chTimeNow();
   while (TRUE) {
-    if (mpu6050GetNewData()) {
-      chBSemSignal(&bsemNewDataReady);
+    if ((g_boardStatus & MPU6050_LOW_DETECTED) &&  mpu6050GetNewData(&g_IMU1)) {
+      chBSemSignal(&bsemIMU1DataReady);
     }
-    /* Wait until the next 2 milliseconds passes. */
-    chThdSleepUntil(time += MS2ST(2));
+    if ((g_boardStatus & MPU6050_HIGH_DETECTED) && mpu6050GetNewData(&g_IMU2)) {
+      chBSemSignal(&bsemIMU2DataReady);
+    }
+    /* Wait until the next 1.5 milliseconds passes. */
+    chThdSleepUntil(time += US2ST(1500));
   }
   /* This point should never be reached. */
   return 0;
@@ -99,10 +104,24 @@ static msg_t AttitudeThread(void *arg) {
   (void)arg;
   attitudeInit();
   while (TRUE) {
-    if (chBSemWait(&bsemNewDataReady) == RDY_OK) {
-      attitudeUpdate();
-      actuatorsUpdate();
+    /* Process IMU1 new data ready event. */
+    if ((g_boardStatus & MPU6050_LOW_DETECTED) && (chBSemWait(&bsemIMU1DataReady) == RDY_OK)) {
+      if (g_IMU1.flags & IMU_CALIBRATE_MASK) {
+        imuCalibrate(&g_IMU1);
+      } else {
+        attitudeUpdate(&g_IMU1);
+      }
     }
+    /* Process IMU2 new data ready event. */
+    if ((g_boardStatus & MPU6050_HIGH_DETECTED) && (chBSemWait(&bsemIMU2DataReady) == RDY_OK)) {
+      if (g_IMU2.flags & IMU_CALIBRATE_MASK) {
+        imuCalibrate(&g_IMU2);
+      } else {
+        attitudeUpdate(&g_IMU2);
+      }
+    }
+    cameraRotationUpdate();
+    actuatorsUpdate();
   }
   /* This point should never be reached. */
   return 0;
@@ -146,6 +165,10 @@ int main(void) {
   /* Enables the CRC peripheral clock. */
   rccEnableCRC(FALSE);
 
+  /* Initialize IMU data structure. */
+  imuStructureInit(&g_IMU1, TRUE);
+  imuStructureInit(&g_IMU2, FALSE);
+
   /* Loads settings from external EEPROM chip.
      WARNING! If MPU6050 sensor is not connected to the I2C bus, there
      aren't pull-up resistors on SDA and SCL lines, therefore it is
@@ -154,12 +177,20 @@ int main(void) {
     g_boardStatus |= EEPROM_24C02_DETECTED;
   }
 
-  /* Initializes the MPU6050 sensor. */
-  if (mpu6050Init()) {
+  /* Initializes the MPU6050 sensor1. */
+  if (mpu6050Init(g_IMU1.addr)) {
     g_boardStatus |= MPU6050_LOW_DETECTED;
+  }
 
+  /* Initializes the MPU6050 sensor2. */
+  if (mpu6050Init(g_IMU2.addr)) {
+    g_boardStatus |= MPU6050_HIGH_DETECTED;
+  }
+
+  if (g_boardStatus & MPU6050_LOW_DETECTED) {
     /* Creates a taken binary semaphore. */
-    chBSemInit(&bsemNewDataReady, TRUE);
+    chBSemInit(&bsemIMU1DataReady, TRUE);
+    chBSemInit(&bsemIMU2DataReady, TRUE);
 
     /* Creates the MPU6050 polling thread and attitude calculation thread. */
     chThdCreateStatic(waPollMPU6050Thread, sizeof(waPollMPU6050Thread),

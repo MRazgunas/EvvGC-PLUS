@@ -87,7 +87,7 @@ static void telemetryProcessCommand(const PDataHdr pHdr) {
   switch (pHdr->cmd_id) {
   case 'D': /* Reads new sensor settings; */
     if ((pHdr->size == sizeof(g_sensorSettings)) && (pHdr->crc == telemetryGetCRC32Checksum(pHdr))) {
-      sensorSettingsUpdate((PSensorStruct)pHdr->data);
+      sensorSettingsUpdate((uint8_t *)pHdr->data);
     }
     break;
   case 'I': /* Reads new mixed input settings; */
@@ -111,8 +111,8 @@ static void telemetryProcessCommand(const PDataHdr pHdr) {
     }
     break;
   case 'a': /* Outputs accelerometer data; */
-    memcpy((void *)dataBuf, (void *)g_accelData, sizeof(g_accelData));
-    pHdr->size = sizeof(g_accelData);
+    memcpy((void *)dataBuf, (void *)g_IMU1.accelData, sizeof(g_IMU1.accelData));
+    pHdr->size = sizeof(g_IMU1.accelData);
     pHdr->data = dataBuf;
     pHdr->crc  = telemetryGetCRC32Checksum(pHdr);
     telemetrySendSerialData(pHdr);
@@ -145,8 +145,8 @@ static void telemetryProcessCommand(const PDataHdr pHdr) {
     telemetrySendSerialData(pHdr);
     break;
   case 'g': /* Outputs gyroscope data; */
-    memcpy((void *)dataBuf, (void *)g_gyroData, sizeof(g_gyroData));
-    pHdr->size = sizeof(g_gyroData);
+    memcpy((void *)dataBuf, (void *)g_IMU1.gyroData, sizeof(g_IMU1.gyroData));
+    pHdr->size = sizeof(g_IMU1.gyroData);
     pHdr->data = dataBuf;
     pHdr->crc  = telemetryGetCRC32Checksum(pHdr);
     telemetrySendSerialData(pHdr);
@@ -193,8 +193,8 @@ static void telemetryProcessCommand(const PDataHdr pHdr) {
     telemetrySendSerialData(pHdr);
     break;
   case 'r': /* Outputs camera attitude data; */
-    memcpy((void *)dataBuf, (void *)g_qIMU, sizeof(g_qIMU));
-    pHdr->size = sizeof(g_qIMU);
+    memcpy((void *)dataBuf, (void *)g_IMU1.qIMU, sizeof(g_IMU1.qIMU));
+    pHdr->size = sizeof(g_IMU1.qIMU);
     pHdr->data = dataBuf;
     pHdr->crc  = telemetryGetCRC32Checksum(pHdr);
     telemetrySendSerialData(pHdr);
@@ -209,10 +209,16 @@ static void telemetryProcessCommand(const PDataHdr pHdr) {
     telemetrySendSerialData(pHdr);
     break;
   case '[': /* Calibrate gyroscope. */
-    calibrationStart(SENSOR_GYROSCOPE);
+    imuCalibrationStart(&g_IMU1, IMU_CALIBRATE_GYRO);
     break;
   case ']': /* Calibrate accelerometer. */
-    calibrationStart(SENSOR_ACCELEROMETER);
+    imuCalibrationStart(&g_IMU1, IMU_CALIBRATE_ACCEL);
+    break;
+  case '{': /* Calibrate gyroscope. */
+    imuCalibrationStart(&g_IMU2, IMU_CALIBRATE_GYRO);
+    break;
+  case '}': /* Calibrate accelerometer. */
+    imuCalibrationStart(&g_IMU2, IMU_CALIBRATE_ACCEL);
     break;
   default:;
   }

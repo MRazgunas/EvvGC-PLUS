@@ -17,12 +17,11 @@
 #ifndef ATTITUDE_H_
 #define ATTITUDE_H_
 
+#include "mpu6050.h"
+
 #define INPUT_MODE_ANGLE      0x00
 #define INPUT_MODE_SPEED      0x01
 #define INPUT_MODE_FOLLOW     0x02
-
-#define SENSOR_GYROSCOPE      0x01
-#define SENSOR_ACCELEROMETER  0x02
 
 typedef struct tagPIDSettings {
   uint8_t P;
@@ -38,10 +37,7 @@ typedef struct tagInputModeStruct {
   uint8_t mode_id;
 } __attribute__((packed)) InputModeStruct, *PInputModeStruct;
 
-extern float g_qIMU[4];
 extern float g_motorOffset[3];
-extern float g_accelBias[3];
-extern float g_gyroBias[3];
 extern PIDSettings g_pidSettings[3];
 extern InputModeStruct g_modeSettings[3];
 
@@ -49,13 +45,11 @@ extern InputModeStruct g_modeSettings[3];
 extern "C" {
 #endif
   void attitudeInit(void);
-  void attitudeUpdate(void);
+  void attitudeUpdate(PIMUStruct pIMU);
+  void cameraRotationUpdate(void);
   void actuatorsUpdate(void);
   void pidSettingsUpdate(const PPIDSettings pNewSettings);
   void inputModeSettingsUpdate(const PInputModeStruct pNewSettings);
-  void accelBiasUpdate(const float *pNewSettings);
-  void gyroBiasUpdate(const float *pNewSettings);
-  void calibrationStart(uint8_t sensor);
 #ifdef __cplusplus
 }
 #endif

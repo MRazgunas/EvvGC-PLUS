@@ -61,11 +61,18 @@ static InputModeSettings modeSettings[3] = {
      0}     /* Mode ID   */
 };
 
-static SensorSettings sensorSettings[3] = {
-/*  ID, DIR */
-    {0,  1}, /* Pitch (X) */
-    {1, -1}, /* Roll (Y)  */
-    {2, -1}  /* Yaw (Z)   */
+/* Default sensor settings.
+ * Structure of the sensor settings is:
+ * D2|2I2|1I2|0I2|D1|2I1|1I1|0I1
+ * where Dx  - axis direction of sensor x;
+ *       nIx - n-th bit of axis ID of sensor x.
+ */
+static quint8 sensorSettings[3] = {
+    0x00 |
+    SENSOR1_AXIS_DIR_POS |
+    SENSOR2_AXIS_DIR_POS, /* Pitch (X) */
+    0x11,                 /* Roll  (Y) */
+    0x22                  /* Yaw   (Z) */
 };
 
 static quint8 sensorAxes[3] = {
@@ -415,9 +422,12 @@ void MainWindow::HandleApplySettings()
 
     if (GetSensorSettings()) {
         /* Write sensor settings; */
-        qDebug() << "FRONT id:" << sensorSettings[0].axis_id << "dir:" << sensorSettings[0].axis_dir;
-        qDebug() << "RIGHT id:" << sensorSettings[1].axis_id << "dir:" << sensorSettings[1].axis_dir;
-        qDebug() << "TOP   id:" << sensorSettings[2].axis_id << "dir:" << sensorSettings[2].axis_dir;
+        qDebug() << "FRONT id:" << (sensorSettings[0] & SENSOR1_AXIS_ID_MASK)\
+                 << "Positive:" << ((sensorSettings[0] & SENSOR1_AXIS_DIR_POS) > 0);
+        qDebug() << "RIGHT id:" << (sensorSettings[1] & SENSOR1_AXIS_ID_MASK)\
+                 << "Positive:" << ((sensorSettings[1] & SENSOR1_AXIS_DIR_POS) > 0);
+        qDebug() << "TOP   id:" << (sensorSettings[2] & SENSOR1_AXIS_ID_MASK)\
+                 << "Positive:" << ((sensorSettings[2] & SENSOR1_AXIS_DIR_POS) > 0);
         qDebug() << "Size:" << sizeof(sensorSettings);
 
         /* Clean data buffer for zero-padded crc32 checksum calculation. */
@@ -623,13 +633,13 @@ void MainWindow::ProcessSerialCommands(const PDataHdr pHdr)
                 ui->pushSensor1GyroCalibrate->setEnabled(false);
             }
             /* Check if EEPROM detected. */
-            if (boardStatus & 2) {
+            if (boardStatus & 4) {
                 ui->actionSave->setEnabled(true);
             } else {
                 ui->actionSave->setEnabled(false);
             }
             qDebug() << "Board status:\r\n  MPU6050 detected:" << ((boardStatus & 1) == 1) \
-                     << "\r\n  EEPROM detected:" << ((boardStatus & 2) == 2);
+                     << "\r\n  EEPROM detected:" << ((boardStatus & 4) == 4);
         } else {
             qDebug() << "Board status CRC32 mismatch:" << hex << pHdr->crc << "|" << GetCRC32Checksum(pHdr);
         }
@@ -1261,34 +1271,35 @@ bool MainWindow::GetSensorSettings()
                 "Top and right axes of the sensor cannot be the same!");
             return false;
         }
-    }
 
-    for (quint8 i = 0; i < 3; i++) {
-        switch (sensorAxes[i]) {
-        case 0: // +X;
-            sensorSettings[i].axis_id = 0;
-            sensorSettings[i].axis_dir = -1;
-            break;
-        case 1: // +Y;
-            sensorSettings[i].axis_id = 1;
-            sensorSettings[i].axis_dir = 1;
-            break;
-        case 2: // +Z;
-            sensorSettings[i].axis_id = 2;
-            sensorSettings[i].axis_dir = -1;
-            break;
-        case 3: // -X;
-            sensorSettings[i].axis_id = 0;
-            sensorSettings[i].axis_dir = 1;
-            break;
-        case 4: // -Y;
-            sensorSettings[i].axis_id = 1;
-            sensorSettings[i].axis_dir = -1;
-            break;
-        case 5: // -Z;
-            sensorSettings[i].axis_id = 2;
-            sensorSettings[i].axis_dir = 1;
-            break;
+        for (quint8 i = 0; i < 3; i++) {
+            sensorSettings[i] = 0;
+            switch (sensorAxes[i]) {
+            case 0: // +X;
+                // Axis ID = 0;
+                // Axis dir = negative;
+                break;
+            case 1: // +Y;
+                sensorSettings[i] |= 1;
+                sensorSettings[i] |= SENSOR1_AXIS_DIR_POS;
+                break;
+            case 2: // +Z;
+                sensorSettings[i] |= 2;
+                // Axis dir = negative;
+                break;
+            case 3: // -X;
+                // Axis ID = 0;
+                sensorSettings[i] |= SENSOR1_AXIS_DIR_POS;
+                break;
+            case 4: // -Y;
+                sensorSettings[i] |= 1;
+                // Axis dir = negative;
+                break;
+            case 5: // -Z;
+                sensorSettings[i] |= 2;
+                sensorSettings[i] |= SENSOR1_AXIS_DIR_POS;
+                break;
+            }
         }
     }
 
@@ -1302,23 +1313,23 @@ bool MainWindow::GetSensorSettings()
 bool MainWindow::SetSensorSettings()
 {
     for (quint8 i = 0; i < 3; i++) {
-        switch (sensorSettings[i].axis_id) {
+        switch (sensorSettings[i] & SENSOR1_AXIS_ID_MASK) {
         case 0: // X;
-            if (sensorSettings[i].axis_dir > 0) {
+            if (sensorSettings[i] & SENSOR1_AXIS_DIR_POS) {
                 sensorAxes[i] = 3;
             } else {
                 sensorAxes[i] = 0;
             }
             break;
         case 1: // Y;
-            if (sensorSettings[i].axis_dir > 0) {
+            if (sensorSettings[i] & SENSOR1_AXIS_DIR_POS) {
                 sensorAxes[i] = 1;
             } else {
                 sensorAxes[i] = 4;
             }
             break;
         case 2: // Z;
-            if (sensorSettings[i].axis_dir > 0) {
+            if (sensorSettings[i] & SENSOR1_AXIS_DIR_POS) {
                 sensorAxes[i] = 5;
             } else {
                 sensorAxes[i] = 2;

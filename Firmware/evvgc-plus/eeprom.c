@@ -14,7 +14,7 @@
     limitations under the License.
 */
 /**
- * WARNING!
+ * ATTENTION!!!
  * - EEPROM chip is accessible only if MPU6050 sensor is connected to the I2C bus.
  *   Otherwise pull-up resistors are missing on SDA and SCL lines, therefore
  *   communication with EEPROM chip is impossible.
@@ -34,22 +34,23 @@
 #include "misc.h"
 
 /* I2C read transaction time-out in milliseconds. */
-#define EEPROM_READ_TIMEOUT_MS  0x0A
+#define EEPROM_READ_TIMEOUT_MS  0x05
 /* I2C write transaction time-out in milliseconds. */
-#define EEPROM_WRITE_TIMEOUT_MS 0x02
+#define EEPROM_WRITE_TIMEOUT_MS 0x01
 /* The beginning of the EEPROM. */
 #define EEPROM_START_ADDR       0x00
 
 typedef struct tagEEPROMStruct {
   PIDSettings pidSettings[3];       /*  9 bytes */
-  PWMOutputStruct pwmOutput[3];     /* 15 bytes */
+  PWMOutputStruct pwmOutput[3];     /* 12 bytes */
   MixedInputStruct mixedInput[3];   /* 21 byte  */
   InputModeStruct modeSettings[3];  /* 24 bytes */
-  SensorStruct sensorSettings[3];   /*  6 bytes */
+  uint8_t sensorSettings[3];        /*  3 bytes */
   float accelBias[3];               /* 12 bytes */
   float gyroBias[3];                /* 12 bytes */
   uint32_t crc32;                   /*  4 bytes */
-/* TOTAL:                             103 bytes */
+/* TOTAL:                              97 bytes */
+/* Bytes left:                        159 bytes */
 } __attribute__((packed)) EEPROMStruct, *PEEPROMStruct;
 
 /**
@@ -176,8 +177,8 @@ uint8_t eepromLoadSettings(void) {
     mixedInputSettingsUpdate(eepromData.mixedInput);
     inputModeSettingsUpdate(eepromData.modeSettings);
     sensorSettingsUpdate(eepromData.sensorSettings);
-    accelBiasUpdate(eepromData.accelBias);
-    gyroBiasUpdate(eepromData.gyroBias);
+    accelBiasUpdate(&g_IMU1, eepromData.accelBias);
+    gyroBiasUpdate(&g_IMU1, eepromData.gyroBias);
   }
 
   return 1;
@@ -194,8 +195,8 @@ uint8_t eepromSaveSettings(void) {
   memcpy((void *)eepromData.mixedInput, (void *)g_mixedInput, sizeof(g_mixedInput));
   memcpy((void *)eepromData.modeSettings, (void *)g_modeSettings, sizeof(g_modeSettings));
   memcpy((void *)eepromData.sensorSettings, (void *)g_sensorSettings, sizeof(g_sensorSettings));
-  memcpy((void *)eepromData.accelBias, (void *)g_accelBias, sizeof(g_accelBias));
-  memcpy((void *)eepromData.gyroBias, (void *)g_gyroBias, sizeof(g_gyroBias));
+  memcpy((void *)eepromData.accelBias, (void *)g_IMU1.accelBias, sizeof(g_IMU1.accelBias));
+  memcpy((void *)eepromData.gyroBias, (void *)g_IMU1.gyroBias, sizeof(g_IMU1.gyroBias));
   eepromData.crc32 = crcCRC32((uint32_t *)&eepromData, sizeof(eepromData) / sizeof(uint32_t) - 1);
   fSkipContinue = 1;
   return eepromWriteData(EEPROM_START_ADDR, (uint8_t *)&eepromData, sizeof(eepromData));

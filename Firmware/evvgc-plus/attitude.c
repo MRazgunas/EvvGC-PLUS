@@ -36,17 +36,15 @@
 
 #include "misc.h"
 #include "attitude.h"
-#include "mpu6050.h"
 #include "pwmio.h"
 
-#define CALIBRATION_COUNTER_MAX   5000
-#define FIXED_DT_STEP             0.002f
+#define FIXED_DT_STEP             0.0015f
 
-#define MOTOR_STEP_LIMIT_MAX      M_PI / 36.0f
+#define MOTOR_STEP_LIMIT_MAX      M_PI / 45.0f
 #define MOTOR_STEP_LIMIT_MIN      -MOTOR_STEP_LIMIT_MAX
 
 #define ACCEL_TAU                 0.1f
-#define INPUT_SIGNAL_ALPHA        200.0f
+#define INPUT_SIGNAL_ALPHA        300.0f
 #define MODE_FOLLOW_DEAD_BAND     M_PI / 36.0f
 
 /* PID controller structure. */
@@ -62,14 +60,8 @@ typedef struct tagPIDStruct {
 /**
  * Global variables.
  */
-/* Attitude quaternion of the IMU. */
-float g_qIMU[4] = {1.0f, 0.0f, 0.0f, 0.0f};
-/* Electrical offset of the motors. */
-float g_motorOffset[3] = {0.0f};
-/* Accelerometer 1-point calibration values. */
-float g_accelBias[3] = {0.0f};
-/* Gyroscope calibration values. */
-float g_gyroBias[3] = {0.0f};
+/* Mechanical offset of the motors. */
+float g_motorOffset[3] = {0.0f, 0.0f, 0.0f};
 
 /**
  * Default PID settings.
@@ -105,7 +97,6 @@ InputModeStruct g_modeSettings[3] = {
 /**
  * Local variables
  */
-static float camAtti[3] = {0.0f};
 static float camRot[3] = {0.0f};
 static float camRotSpeedPrev[3] = {0.0f};
 
@@ -115,14 +106,6 @@ static float accelKi = 0.0002;
 /* Accelerometer filter variables. */
 static uint8_t fAccelFilterEnabled = TRUE;
 static float accel_alpha = 0.0f;
-static float accelFiltered[3] = {0.0f};
-static float grotFiltered[3] = {0.0f};
-
-/* Calibration related variables: */
-static uint8_t fCalibrateAccel = FALSE;
-static uint8_t fCalibrateGyro = TRUE;
-static uint16_t counter = 0;
-static float accum[3] = {0.0f};
 
 /* PID controller parameters. */
 static PIDStruct PID[3] = {
@@ -130,8 +113,6 @@ static PIDStruct PID[3] = {
   {0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f},
   {0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f}
 };
-
-extern uint8_t g_fCalibrating;
 
 /**
  * @brief  Implements basic PID stabilization of the motor speed.
@@ -178,8 +159,8 @@ static float pidControllerApply(uint8_t cmd_id, float sp, float pv) {
 static void pidUpdateStruct(void) {
   uint8_t i;
   for (i = 0; i < 3; i++) {
-    PID[i].P = (float)g_pidSettings[i].P*0.2f;
-    PID[i].I = (float)g_pidSettings[i].I*0.02f;
+    PID[i].P = (float)g_pidSettings[i].P*0.1f;
+    PID[i].I = (float)g_pidSettings[i].I*0.01f;
     PID[i].D = (float)g_pidSettings[i].D*1.0f;
     if (!g_pidSettings[i].I) {
       g_motorOffset[i] = 0.0f;
@@ -188,9 +169,104 @@ static void pidUpdateStruct(void) {
 }
 
 /**
+ * @brief  First order low-pass filter.
+ * @param  raw - pointer to raw data array;
+ * @param  filtered - pointer to filtered data array;
+ */
+static void accelFilterApply(const float raw[], float filtered[]) {
+  if (fAccelFilterEnabled) {
+    filtered[0] = (filtered[0] - raw[0])*accel_alpha + raw[0];
+    filtered[1] = (filtered[1] - raw[1])*accel_alpha + raw[1];
+    filtered[2] = (filtered[2] - raw[2])*accel_alpha + raw[2];
+  } else {
+    memcpy((void *)filtered, (void *)raw, sizeof(float)*3);
+  }
+}
+
+/**
  * @brief
  */
-static void cameraRotationUpdate(void) {
+void attitudeInit(void) {
+  memset((void *)PID, 0, sizeof(PID));
+  pidUpdateStruct();
+  accel_alpha = expf(-FIXED_DT_STEP / ACCEL_TAU);
+}
+
+/**
+ * @brief
+ */
+void attitudeUpdate(PIMUStruct pIMU) {
+  float accelErr[3] = {0.0f};
+  float mag;
+  float dq[4];
+
+  pIMU->accelData[0] -= pIMU->accelBias[0];
+  pIMU->accelData[1] -= pIMU->accelBias[1];
+  pIMU->accelData[2] -= pIMU->accelBias[2];
+
+  pIMU->gyroData[0] -= pIMU->gyroBias[0];
+  pIMU->gyroData[1] -= pIMU->gyroBias[1];
+  pIMU->gyroData[2] -= pIMU->gyroBias[2];
+
+  // Account for accel's magnitude.
+  mag = QInvSqrtf(pIMU->accelData[0]*pIMU->accelData[0] + pIMU->accelData[1]*pIMU->accelData[1] + pIMU->accelData[2]*pIMU->accelData[2]);
+
+  if ((mag > 0.0724f) && (mag < 0.1724f)) {
+    float grot[3];
+
+    // Rotate gravity to body frame and cross with accels.
+    grot[0] = -(2.0f*(pIMU->qIMU[1]*pIMU->qIMU[3] - pIMU->qIMU[0]*pIMU->qIMU[2]));
+    grot[1] = -(2.0f*(pIMU->qIMU[2]*pIMU->qIMU[3] + pIMU->qIMU[0]*pIMU->qIMU[1]));
+    grot[2] =  (2.0f*(pIMU->qIMU[1]*pIMU->qIMU[1] + pIMU->qIMU[2]*pIMU->qIMU[2])) - 1.0f;
+
+    // Apply smoothing to accel values, to reduce vibration noise before main calculations.
+    accelFilterApply(pIMU->accelData, pIMU->accelFiltered);
+    // Apply the same filtering to the rotated attitude to match phase shift.
+    accelFilterApply(grot, pIMU->grotFiltered);
+    // Compute the error between the predicted direction of gravity and smoothed acceleration.
+    CrossProduct(pIMU->accelFiltered, pIMU->grotFiltered, accelErr);
+
+    // Normalize accel_error.
+    accelErr[0] *= mag;
+    accelErr[1] *= mag;
+    accelErr[2] *= mag;
+  }
+
+  // Correct rates based on error.
+  pIMU->gyroData[0] += accelErr[0]*(accelKp / FIXED_DT_STEP);
+  pIMU->gyroData[1] += accelErr[1]*(accelKp / FIXED_DT_STEP);
+  pIMU->gyroData[2] += accelErr[2]*(accelKp / FIXED_DT_STEP);
+
+  // Correct rates based on error.
+  pIMU->gyroBias[0] -= accelErr[0]*accelKi;
+  pIMU->gyroBias[1] -= accelErr[1]*accelKi;
+  pIMU->gyroBias[2] -= accelErr[2]*accelKi;
+
+  dq[0] = (-pIMU->qIMU[1]*pIMU->gyroData[0] - pIMU->qIMU[2]*pIMU->gyroData[1] - pIMU->qIMU[3]*pIMU->gyroData[2])*(FIXED_DT_STEP*DEG2RAD*0.5f);
+  dq[1] = ( pIMU->qIMU[0]*pIMU->gyroData[0] - pIMU->qIMU[3]*pIMU->gyroData[1] + pIMU->qIMU[2]*pIMU->gyroData[2])*(FIXED_DT_STEP*DEG2RAD*0.5f);
+  dq[2] = ( pIMU->qIMU[3]*pIMU->gyroData[0] + pIMU->qIMU[0]*pIMU->gyroData[1] - pIMU->qIMU[1]*pIMU->gyroData[2])*(FIXED_DT_STEP*DEG2RAD*0.5f);
+  dq[3] = (-pIMU->qIMU[2]*pIMU->gyroData[0] + pIMU->qIMU[1]*pIMU->gyroData[1] + pIMU->qIMU[0]*pIMU->gyroData[2])*(FIXED_DT_STEP*DEG2RAD*0.5f);
+
+  pIMU->qIMU[0] += dq[0];
+  pIMU->qIMU[1] += dq[1];
+  pIMU->qIMU[2] += dq[2];
+  pIMU->qIMU[3] += dq[3];
+
+  // Normalize attitude quaternion.
+  mag = QInvSqrtf(pIMU->qIMU[0]*pIMU->qIMU[0] + pIMU->qIMU[1]*pIMU->qIMU[1] + pIMU->qIMU[2]*pIMU->qIMU[2] + pIMU->qIMU[3]*pIMU->qIMU[3]);
+  pIMU->qIMU[0] *= mag;
+  pIMU->qIMU[1] *= mag;
+  pIMU->qIMU[2] *= mag;
+  pIMU->qIMU[3] *= mag;
+
+  // Convert attitude into Euler angles;
+  Quaternion2RPY(pIMU->qIMU, pIMU->rpy);
+}
+
+/**
+ * @brief
+ */
+void cameraRotationUpdate(void) {
   uint8_t i;
   float coef;
   float speedLimit;
@@ -217,8 +293,13 @@ static void cameraRotationUpdate(void) {
       continue;
     } else {
       /* Calculate input scaling coefficient: */
-      coef = ((float)(g_inputValues[g_mixedInput[i].channel_id] - g_mixedInput[i].mid_val)) /
-             ((float)(g_mixedInput[i].max_val - g_mixedInput[i].min_val));
+      if (g_mixedInput[i].max_val == g_mixedInput[i].min_val) {
+        /* Avoid divisions by zero. */
+        coef = 0.0f;
+      } else {
+        coef = ((float)(g_inputValues[g_mixedInput[i].channel_id] - g_mixedInput[i].mid_val)) /
+               ((float)(g_mixedInput[i].max_val - g_mixedInput[i].min_val));
+      }
 
       if (g_modeSettings[i].mode_id & INPUT_MODE_SPEED) {
         /* Calculate speed from RC input data: */
@@ -245,164 +326,26 @@ static void cameraRotationUpdate(void) {
 /**
  * @brief
  */
-static void accelFilterApply(const float *raw, float *filtered) {
-  if (fAccelFilterEnabled) {
-    filtered[0] = (filtered[0] - raw[0])*accel_alpha + raw[0];
-    filtered[1] = (filtered[1] - raw[1])*accel_alpha + raw[1];
-    filtered[2] = (filtered[2] - raw[2])*accel_alpha + raw[2];
-  } else {
-    memcpy((void *)filtered, (void *)raw, sizeof(float)*3);
-  }
-}
-
-/**
- * @brief
- */
-void attitudeInit(void) {
-  memset((void *)PID, 0, sizeof(PID));
-  pidUpdateStruct();
-  accel_alpha = expf(-FIXED_DT_STEP / ACCEL_TAU);
-  g_fCalibrating = TRUE;
-}
-
-/**
- * @brief
- */
-void attitudeUpdate(void) {
-  float accelErr[3] = {0.0f};
-  float mag;
-  float dq[4];
-
-  if (fCalibrateGyro) {
-    if (counter++ < CALIBRATION_COUNTER_MAX) {
-      accum[0] += g_gyroData[0];
-      accum[1] += g_gyroData[1];
-      accum[2] += g_gyroData[2];
-      return;
-    } else {
-      g_gyroBias[0] = accum[0] / CALIBRATION_COUNTER_MAX;
-      g_gyroBias[1] = accum[1] / CALIBRATION_COUNTER_MAX;
-      g_gyroBias[2] = accum[2] / CALIBRATION_COUNTER_MAX;
-
-      counter = 0;
-      accum[0] = 0.0f;
-      accum[1] = 0.0f;
-      accum[2] = 0.0f;
-
-      fCalibrateGyro = FALSE;
-      g_fCalibrating = FALSE;
-    }
-  }
-
-  if (fCalibrateAccel) {
-    if (counter++ < CALIBRATION_COUNTER_MAX) {
-      accum[0] += g_accelData[0];
-      accum[1] += g_accelData[1];
-      accum[2] += g_accelData[2] + GRAV;
-      return;
-    } else {
-      g_accelBias[0] = accum[0] / CALIBRATION_COUNTER_MAX;
-      g_accelBias[1] = accum[1] / CALIBRATION_COUNTER_MAX;
-      g_accelBias[2] = accum[2] / CALIBRATION_COUNTER_MAX;
-
-      counter = 0;
-      accum[0] = 0.0f;
-      accum[1] = 0.0f;
-      accum[2] = 0.0f;
-
-      fCalibrateAccel = FALSE;
-      g_fCalibrating = FALSE;
-    }
-  }
-
-  g_accelData[0] -= g_accelBias[0];
-  g_accelData[1] -= g_accelBias[1];
-  g_accelData[2] -= g_accelBias[2];
-
-  g_gyroData[0] -= g_gyroBias[0];
-  g_gyroData[1] -= g_gyroBias[1];
-  g_gyroData[2] -= g_gyroBias[2];
-
-  // Account for accel's magnitude.
-  mag = QInvSqrtf(g_accelData[0]*g_accelData[0] + g_accelData[1]*g_accelData[1] + g_accelData[2]*g_accelData[2]);
-
-  if ((mag > 0.0724f) && (mag < 0.1724f)) {
-    float grot[3];
-
-    // Rotate gravity to body frame and cross with accels.
-    grot[0] = -(2.0f*(g_qIMU[1]*g_qIMU[3] - g_qIMU[0]*g_qIMU[2]));
-    grot[1] = -(2.0f*(g_qIMU[2]*g_qIMU[3] + g_qIMU[0]*g_qIMU[1]));
-    grot[2] =  (2.0f*(g_qIMU[1]*g_qIMU[1] + g_qIMU[2]*g_qIMU[2])) - 1.0f;
-
-    // Apply smoothing to accel values, to reduce vibration noise before main calculations.
-    accelFilterApply(g_accelData, accelFiltered);
-    // Apply the same filtering to the rotated attitude to match phase shift.
-    accelFilterApply(grot, grotFiltered);
-    // Compute the error between the predicted direction of gravity and smoothed acceleration.
-    CrossProduct(accelFiltered, grotFiltered, accelErr);
-
-    // Normalize accel_error.
-    accelErr[0] *= mag;
-    accelErr[1] *= mag;
-    accelErr[2] *= mag;
-  }
-
-  // Correct rates based on error.
-  g_gyroData[0] += accelErr[0]*(accelKp / FIXED_DT_STEP);
-  g_gyroData[1] += accelErr[1]*(accelKp / FIXED_DT_STEP);
-  g_gyroData[2] += accelErr[2]*(accelKp / FIXED_DT_STEP);
-
-  // Correct rates based on error.
-  g_gyroBias[0] -= accelErr[0]*accelKi;
-  g_gyroBias[1] -= accelErr[1]*accelKi;
-  g_gyroBias[2] -= accelErr[2]*accelKi;
-
-  dq[0] = (-g_qIMU[1]*g_gyroData[0] - g_qIMU[2]*g_gyroData[1] - g_qIMU[3]*g_gyroData[2])*(FIXED_DT_STEP*DEG2RAD*0.5f);
-  dq[1] = ( g_qIMU[0]*g_gyroData[0] - g_qIMU[3]*g_gyroData[1] + g_qIMU[2]*g_gyroData[2])*(FIXED_DT_STEP*DEG2RAD*0.5f);
-  dq[2] = ( g_qIMU[3]*g_gyroData[0] + g_qIMU[0]*g_gyroData[1] - g_qIMU[1]*g_gyroData[2])*(FIXED_DT_STEP*DEG2RAD*0.5f);
-  dq[3] = (-g_qIMU[2]*g_gyroData[0] + g_qIMU[1]*g_gyroData[1] + g_qIMU[0]*g_gyroData[2])*(FIXED_DT_STEP*DEG2RAD*0.5f);
-
-  g_qIMU[0] += dq[0];
-  g_qIMU[1] += dq[1];
-  g_qIMU[2] += dq[2];
-  g_qIMU[3] += dq[3];
-
-  // Normalize attitude quaternion g_qIMU.
-  mag = QInvSqrtf (g_qIMU[0]*g_qIMU[0] + g_qIMU[1]*g_qIMU[1] + g_qIMU[2]*g_qIMU[2] + g_qIMU[3]*g_qIMU[3]);
-  g_qIMU[0] *= mag;
-  g_qIMU[1] *= mag;
-  g_qIMU[2] *= mag;
-  g_qIMU[3] *= mag;
-
-  cameraRotationUpdate();
-
-  // Convert attitude into Euler degrees;
-  Quaternion2RPY(g_qIMU, camAtti);
-}
-
-/**
- * @brief
- */
 void actuatorsUpdate(void) {
   float cmd = 0.0f;
   /* Pitch: */
   uint8_t cmd_id = g_pwmOutput[PWM_OUT_PITCH].dt_cmd_id & PWM_OUT_CMD_ID_MASK;
   if (cmd_id != PWM_OUT_CMD_DISABLED) {
-    cmd = pidControllerApply(cmd_id, camRot[cmd_id], camAtti[cmd_id]);
+    cmd = pidControllerApply(cmd_id, camRot[cmd_id], g_IMU1.rpy[cmd_id]);
   }
   pwmOutputUpdate(PWM_OUT_PITCH, cmd);
   cmd = 0.0f;
   /* Roll: */
   cmd_id = g_pwmOutput[PWM_OUT_ROLL].dt_cmd_id & PWM_OUT_CMD_ID_MASK;
   if (cmd_id != PWM_OUT_CMD_DISABLED) {
-    cmd = pidControllerApply(cmd_id, camRot[cmd_id], camAtti[cmd_id]);
+    cmd = pidControllerApply(cmd_id, camRot[cmd_id], g_IMU1.rpy[cmd_id]);
   }
   pwmOutputUpdate(PWM_OUT_ROLL, cmd);
   cmd = 0.0f;
   /* Yaw: */
   cmd_id = g_pwmOutput[PWM_OUT_YAW].dt_cmd_id & PWM_OUT_CMD_ID_MASK;
   if (cmd_id != PWM_OUT_CMD_DISABLED) {
-    cmd = pidControllerApply(cmd_id, camRot[cmd_id], camAtti[cmd_id]);
+    cmd = pidControllerApply(cmd_id, camRot[cmd_id], g_IMU1.rpy[cmd_id]);
   }
   pwmOutputUpdate(PWM_OUT_YAW, cmd);
 }
@@ -420,34 +363,4 @@ void pidSettingsUpdate(const PPIDSettings pNewSettings) {
  */
 void inputModeSettingsUpdate(const PInputModeStruct pNewSettings) {
   memcpy((void *)&g_modeSettings, (void *)pNewSettings, sizeof(g_modeSettings));
-}
-
-/**
- * @brief
- */
-void accelBiasUpdate(const float *pNewSettings) {
-  memcpy((void *)g_accelBias, (void *)pNewSettings, sizeof(g_accelBias));
-}
-
-/**
- * @brief
- */
-void gyroBiasUpdate(const float *pNewSettings) {
-	memcpy((void *)g_gyroBias, (void *)pNewSettings, sizeof(g_gyroBias));
-}
-
-/**
- * @brief
- */
-void calibrationStart(uint8_t sensor) {
-  switch (sensor) {
-  case SENSOR_GYROSCOPE:
-    fCalibrateGyro = TRUE;
-    g_fCalibrating = TRUE;
-    break;
-  case SENSOR_ACCELEROMETER:
-    fCalibrateAccel = TRUE;
-    g_fCalibrating = TRUE;
-    break;
-  }
 }

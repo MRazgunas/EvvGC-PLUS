@@ -71,7 +71,12 @@ include $(CHIBIOS)/chibios_2.6.7/ports/GCC/ARMCMx/STM32F1xx/port.mk
 include $(CHIBIOS)/chibios_2.6.7/kernel/kernel.mk
 
 # Define linker script file here
-LDSCRIPT= $(PORTLD)/STM32F103xC.ld
+ifeq ($(USE_USB_BL),yes)
+  LDSCRIPT= $(PORTLD)/STM32F103xC_BL.ld
+  USE_OPT += -DUSE_USB_BL
+else
+  LDSCRIPT= $(PORTLD)/STM32F103xC.ld
+endif
 
 # C sources that can be compiled in ARM or THUMB mode depending on the global
 # setting.
