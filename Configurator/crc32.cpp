@@ -6,7 +6,7 @@
  *   &FolderCTID=0x01200200770978C69A1141439FE559EB459D7580009C4E14902C3CDE46A77F0FFD06506F5B
  */
 
-#include <QtGlobal>
+#include "crc32.h"
 
 /* Nibble lookup table for 0x04C11DB7 polynomial. */
 static const quint32 crc_tab[16] = {

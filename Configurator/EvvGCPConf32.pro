@@ -16,12 +16,16 @@ SOURCES += \
     main.cpp\
     mainwindow.cpp \
     glwidget.cpp \
+    serialthread.cpp \
     crc32.cpp \
     3rdparty/qcustomplot.cpp
 
 HEADERS += \
     mainwindow.h \
     glwidget.h \
+    serialthread.h \
+    telemetry.h \
+    crc32.h \
     3rdparty/qcustomplot.h
 
 FORMS += \

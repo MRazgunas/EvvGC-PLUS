@@ -5,10 +5,13 @@
 #include <QLabel>
 #include <QMainWindow>
 #include <QTimer>
-#include <QtSerialPort/QSerialPort>
 #include <QQuaternion>
 
 #include <math.h>
+
+#include "serialthread.h"
+#include "telemetry.h"
+#include "crc32.h"
 
 /**
  * I2C bus error conditions
@@ -35,14 +38,6 @@
 #define SENSOR2_AXIS_DIR_POS    0x80
 #define SENSOR2_AXIS_ID_MASK    0x70
 
-typedef struct tagDataHdr
-{
-    quint8 cmd_id;
-    quint8 size;
-    const char *data;
-    quint32 crc;
-} __attribute__((packed)) DataHdr, *PDataHdr;
-
 typedef struct tagPIDSettings
 {
     quint8 P;
@@ -55,7 +50,7 @@ typedef struct tagOutputSettings
     quint8 power;
     quint8 num_poles;
     quint8 flags;
-    quint8 dt_cmd_id; /* High nibble contais dead-time ID, low nibble contains command ID. */
+    quint8 dt_cmd_id; /* High nibble contains dead-time ID, low nibble contains command ID. */
 } __attribute__((packed)) OutputSettings, *POutputSettings;
 
 typedef struct tagInputSettings
@@ -94,13 +89,15 @@ public:
     ~MainWindow();
 
 private slots:
-    void HandleSerialConnection();
+    void SerialConnect();
+    void SerialDataWrite(const TelemetryMessage &msg);
+    void ProcessSerialMessages(const TelemetryMessage &msg);
+    void SerialError(const QString &s);
+    void SerialTimeout(const QString &s);
     void HandleReadSettings();
     void HandleApplySettings();
     void HandleSaveSettings();
     void ProcessTimeout();
-    void ReadSerialData();
-    void HandleSerialError(QSerialPort::SerialPortError error);
     void HandleDataXClicked();
     void HandleDataYClicked();
     void HandleDataZClicked();
@@ -119,20 +116,16 @@ private:
     bool SetInputModeSettings();
     bool GetSensorSettings();
     bool SetSensorSettings();
-    void ProcessSerialCommands(const PDataHdr pHdr);
-    void SendTelemetryData(const PDataHdr pHdr);
-    quint32 GetCRC32Checksum(const PDataHdr pHdr);
+    quint32 GetCRC32Checksum(const TelemetryMessage &msg);
 
 private:
     Ui::MainWindow *ui;
     QComboBox *m_SerialDeviceList;
-    QSerialPort m_serialPort;
+    SerialThread m_thread;
     QTimer m_timer;
-    char dataBuf[32];
     bool fConnected;
-    quint8 bytesRequired;
+    TelemetryMessage m_msg;
     QQuaternion lastQ;
-    DataHdr dataHdr;
     quint32 boardStatus;
     quint16 inputValues[5];
     float motorOffset[3];

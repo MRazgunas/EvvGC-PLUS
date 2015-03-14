@@ -17,7 +17,7 @@
    </size>
   </property>
   <property name="windowTitle">
-   <string>EvvGC-PLUS Configurator v0.1.0-alpha</string>
+   <string>EvvGC-PLUS Configurator v0.1.2-alpha</string>
   </property>
   <widget class="QWidget" name="centralWidget">
    <layout class="QVBoxLayout" name="verticalLayout">
@@ -1678,7 +1678,7 @@
     <property name="title">
      <string>Board</string>
     </property>
-    <addaction name="actionHandleConnection"/>
+    <addaction name="actionConnect"/>
     <addaction name="separator"/>
     <addaction name="actionRead"/>
     <addaction name="actionSet"/>
@@ -1699,14 +1699,14 @@
    <attribute name="toolBarBreak">
     <bool>false</bool>
    </attribute>
-   <addaction name="actionHandleConnection"/>
+   <addaction name="actionConnect"/>
    <addaction name="separator"/>
    <addaction name="actionRead"/>
    <addaction name="actionSet"/>
    <addaction name="actionSave"/>
   </widget>
   <widget class="QStatusBar" name="statusBar"/>
-  <action name="actionHandleConnection">
+  <action name="actionConnect">
    <property name="enabled">
     <bool>false</bool>
    </property>

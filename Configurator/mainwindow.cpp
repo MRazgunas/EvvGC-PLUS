@@ -2,7 +2,6 @@
 #include "ui_mainwindow.h"
 
 #include <QMessageBox>
-#include <QComboBox>
 #include <QtSerialPort/QSerialPortInfo>
 #include <QDebug>
 
@@ -118,14 +117,6 @@ static inline void Quaternion2RPY(const float q[4], float rpy[3])
 }
 
 /**
- * @brief crc32 - calculate CRC32 checksum using STM32 algorythm.
- * @param pBuf - data buffer.
- * @param length - length of the data buffer.
- * @return CRC32 checksum.
- */
-quint32 crc32(const quint32 pBuf[], size_t length);
-
-/**
  * @brief MainWindow::MainWindow
  * @param parent
  */
@@ -134,26 +125,25 @@ MainWindow::MainWindow(QWidget *parent) :
     ui(new Ui::MainWindow),
     m_SerialDeviceList(new QComboBox),
     fConnected(false),
-    bytesRequired(0),
     boardStatus(0)
 {
     ui->setupUi(this);
 
     m_SerialDeviceList->setMinimumWidth(250);
     m_SerialDeviceList->setEnabled(false);
-    ui->mainToolBar->insertWidget(ui->actionHandleConnection, m_SerialDeviceList);
-    ui->mainToolBar->insertSeparator(ui->actionHandleConnection);
+    ui->mainToolBar->insertWidget(ui->actionConnect, m_SerialDeviceList);
+    ui->mainToolBar->insertSeparator(ui->actionConnect);
 
-    connect(ui->actionHandleConnection, SIGNAL(triggered()), this, SLOT(HandleSerialConnection()));
+    connect(ui->actionConnect, SIGNAL(triggered()), this, SLOT(SerialConnect()));
     connect(ui->actionRead, SIGNAL(triggered()), this, SLOT(HandleReadSettings()));
     connect(ui->actionSet, SIGNAL(triggered()), this, SLOT(HandleApplySettings()));
     connect(ui->actionSave, SIGNAL(triggered()), this, SLOT(HandleSaveSettings()));
-    connect(&m_timer, SIGNAL(timeout()), this, SLOT(ProcessTimeout()));
-    connect(&m_serialPort, SIGNAL(readyRead()), this, SLOT(ReadSerialData()));
-    connect(&m_serialPort, SIGNAL(error(QSerialPort::SerialPortError)), this,
-            SLOT(HandleSerialError(QSerialPort::SerialPortError)));
     connect(ui->pushSensor1AccCalibrate, SIGNAL(clicked()), this, SLOT(HandleAccCalibrate()));
     connect(ui->pushSensor1GyroCalibrate, SIGNAL(clicked()), this, SLOT(HandleGyroCalibrate()));
+    connect(&m_timer, SIGNAL(timeout()), this, SLOT(ProcessTimeout()));
+    connect(&m_thread, SIGNAL(serialError(QString)), this, SLOT(SerialError(QString)));
+    connect(&m_thread, SIGNAL(serialTimeout(QString)), this, SLOT(SerialTimeout(QString)));
+    connect(&m_thread, SIGNAL(serialDataReady(TelemetryMessage)), this, SLOT(ProcessSerialMessages(TelemetryMessage)));
 
     FillPortsInfo();
 
@@ -200,7 +190,7 @@ MainWindow::MainWindow(QWidget *parent) :
 MainWindow::~MainWindow()
 {
     if (fConnected) {
-        HandleSerialConnection();
+        SerialConnect();
     }
     delete ui;
 }
@@ -218,19 +208,21 @@ void MainWindow::FillPortsInfo()
             m_SerialDeviceList->addItem(info.description() + ' ' + '(' + info.portName() + ')', info.portName());
         }
         m_SerialDeviceList->setEnabled(true);
-        ui->actionHandleConnection->setEnabled(true);
+        ui->actionConnect->setEnabled(true);
     }
 }
 
 /**
  * @brief MainWindow::HandleConnection
  */
-void MainWindow::HandleSerialConnection()
+void MainWindow::SerialConnect()
 {
     if (fConnected) {
-        m_timer.stop();
-        m_serialPort.close();
-        ui->actionHandleConnection->setText(tr("Connect"));
+        if (m_timer.isActive()) {
+            m_timer.stop();
+        }
+        m_thread.disconnect();
+        ui->actionConnect->setText(tr("Connect"));
         ui->actionRead->setEnabled(false);
         ui->actionSet->setEnabled(false);
         ui->actionSave->setEnabled(false);
@@ -238,38 +230,54 @@ void MainWindow::HandleSerialConnection()
         ui->statusBar->showMessage(tr("Disconnected from: %1").arg(m_SerialDeviceList->currentText()));
         fConnected = false;
     } else {
-        QString portName = m_SerialDeviceList->currentData().toString();
-        m_serialPort.setPortName(portName);
-        m_serialPort.setBaudRate(57600);
-        m_serialPort.setDataBits(QSerialPort::Data8);
-        m_serialPort.setParity(QSerialPort::NoParity);
-        m_serialPort.setStopBits(QSerialPort::OneStop);
-        m_serialPort.setFlowControl(QSerialPort::NoFlowControl);
-        if (m_serialPort.open(QIODevice::ReadWrite)) {
-                ui->actionHandleConnection->setText(tr("Disconnect"));
-                ui->actionRead->setEnabled(true);
-                ui->actionSet->setEnabled(true);
-                m_SerialDeviceList->setEnabled(false);
-                ui->statusBar->showMessage(tr("Connected to: %1").arg(m_SerialDeviceList->currentText()));
-                fConnected = true;
-                m_timer.start(100);
-        } else {
-            QMessageBox::critical(this, tr("Serial Error"), m_serialPort.errorString());
-            ui->statusBar->showMessage(tr("Open error"), 2000);
-        }
+        m_thread.connect(m_SerialDeviceList->currentData().toString());
+        ui->actionConnect->setText(tr("Disconnect"));
+        ui->actionRead->setEnabled(true);
+        ui->actionSet->setEnabled(true);
+        m_SerialDeviceList->setEnabled(false);
+        ui->statusBar->showMessage(tr("Connected to: %1").arg(m_SerialDeviceList->currentText()));
+        fConnected = true;
+        m_timer.start(100);
     }
 }
 
-/**
- * @brief MainWindow::SendTelemetryData
- * @param pHdr - pointer to data header structure.
- */
-void MainWindow::SendTelemetryData(const PDataHdr pHdr)
+void MainWindow::SerialDataWrite(const TelemetryMessage &msg)
 {
-    m_serialPort.write((const char*)pHdr, sizeof(pHdr->cmd_id) + sizeof(pHdr->size));
-    if (pHdr->size) {
-        m_serialPort.write((const char*)pHdr->data, pHdr->size);
-        m_serialPort.write((const char*)&pHdr->crc, sizeof(pHdr->crc));
+    QByteArray data;
+    data.append((char *)&msg, msg.size - TELEMETRY_CRC_SIZE_BYTES);
+    data.append((char *)&msg.crc, TELEMETRY_CRC_SIZE_BYTES);
+    m_thread.write(data);
+}
+
+void MainWindow::SerialError(const QString &s)
+{
+    if (fConnected) {
+        if (m_timer.isActive()) {
+            m_timer.stop();
+        }
+        ui->actionConnect->setText(tr("Connect"));
+        ui->actionRead->setEnabled(false);
+        ui->actionSet->setEnabled(false);
+        ui->actionSave->setEnabled(false);
+        m_SerialDeviceList->setEnabled(true);
+        fConnected = false;
+        ui->statusBar->showMessage(s);
+    }
+}
+
+void MainWindow::SerialTimeout(const QString &s)
+{
+    if (fConnected) {
+        if (m_timer.isActive()) {
+            m_timer.stop();
+        }
+        ui->actionConnect->setText(tr("Connect"));
+        ui->actionRead->setEnabled(false);
+        ui->actionSet->setEnabled(false);
+        ui->actionSave->setEnabled(false);
+        m_SerialDeviceList->setEnabled(true);
+        fConnected = false;
+        ui->statusBar->showMessage(s);
     }
 }
 
@@ -278,13 +286,13 @@ void MainWindow::SendTelemetryData(const PDataHdr pHdr)
  * @param  pHdr - pointer to data header structure.
  * @return crc32 checksum of zero-padded data buffer.
  */
-quint32 MainWindow::GetCRC32Checksum(const PDataHdr pHdr)
+quint32 MainWindow::GetCRC32Checksum(const TelemetryMessage &msg)
 {
-    size_t crc_length = pHdr->size / sizeof(quint32);
-    if (pHdr->size % sizeof(quint32)) {
+    size_t crc_length = (msg.size - TELEMETRY_CRC_SIZE_BYTES) / sizeof(quint32);
+    if ((msg.size - TELEMETRY_CRC_SIZE_BYTES) % sizeof(quint32)) {
         crc_length++;
     }
-    return crc32((const quint32 *)pHdr->data, crc_length);
+    return crc32((const quint32 *)&msg, crc_length);
 }
 
 /**
@@ -292,40 +300,44 @@ quint32 MainWindow::GetCRC32Checksum(const PDataHdr pHdr)
  */
 void MainWindow::HandleReadSettings()
 {
+    m_msg.sof    = TELEMETRY_MSG_SOF;
+    m_msg.size   = TELEMETRY_MSG_SIZE_BYTES;
+    m_msg.res    = 0;
+
     /* Get board status data. */
-    dataHdr.cmd_id = 'b';
-    dataHdr.size   = 0;
-    SendTelemetryData(&dataHdr);
+    m_msg.msg_id = 'b';
+    m_msg.crc    = GetCRC32Checksum(m_msg);
+    SerialDataWrite(m_msg);
 
     /* Get I2C error info data. */
-    dataHdr.cmd_id = 'e';
-    dataHdr.size   = 0;
-    SendTelemetryData(&dataHdr);
+    m_msg.msg_id = 'e';
+    m_msg.crc    = GetCRC32Checksum(m_msg);
+    SerialDataWrite(m_msg);
 
     /* Get stabilization settings. */
-    dataHdr.cmd_id = 's';
-    dataHdr.size   = 0;
-    SendTelemetryData(&dataHdr);
+    m_msg.msg_id = 's';
+    m_msg.crc    = GetCRC32Checksum(m_msg);
+    SerialDataWrite(m_msg);
 
     /* Get output settings. */
-    dataHdr.cmd_id = 'o';
-    dataHdr.size   = 0;
-    SendTelemetryData(&dataHdr);
+    m_msg.msg_id = 'o';
+    m_msg.crc    = GetCRC32Checksum(m_msg);
+    SerialDataWrite(m_msg);
 
     /* Get input settings. */
-    dataHdr.cmd_id = 'p';
-    dataHdr.size   = 0;
-    SendTelemetryData(&dataHdr);
+    m_msg.msg_id = 'p';
+    m_msg.crc    = GetCRC32Checksum(m_msg);
+    SerialDataWrite(m_msg);
 
     /* Get input mode settings. */
-    dataHdr.cmd_id = 'm';
-    dataHdr.size   = 0;
-    SendTelemetryData(&dataHdr);
+    m_msg.msg_id = 'm';
+    m_msg.crc    = GetCRC32Checksum(m_msg);
+    SerialDataWrite(m_msg);
 
     /* Get sensor settings. */
-    dataHdr.cmd_id = 'd';
-    dataHdr.size   = 0;
-    SendTelemetryData(&dataHdr);
+    m_msg.msg_id = 'd';
+    m_msg.crc    = GetCRC32Checksum(m_msg);
+    SerialDataWrite(m_msg);
 }
 
 /**
@@ -333,6 +345,9 @@ void MainWindow::HandleReadSettings()
  */
 void MainWindow::HandleApplySettings()
 {
+    m_msg.sof = TELEMETRY_MSG_SOF;
+    m_msg.res = 0;
+
     if (GetStabilizationSettings()) {
         /* Write stabilization settings; */
         qDebug() << "Pitch P:" << PID[0].P << "I:" << PID[0].I << "D:" << PID[0].D;
@@ -341,14 +356,13 @@ void MainWindow::HandleApplySettings()
         qDebug() << "Size:" << sizeof(PID);
 
         /* Clean data buffer for zero-padded crc32 checksum calculation. */
-        memset((void *)dataBuf, 0, sizeof(dataBuf));
-        memcpy((void *)dataBuf, (void *)PID, sizeof(PID));
-        dataHdr.cmd_id = 'S';
-        dataHdr.size   = sizeof(PID);
-        dataHdr.data   = dataBuf;
-        dataHdr.crc    = GetCRC32Checksum(&dataHdr);
+        memset((void *)m_msg.data, 0, TELEMETRY_BUFFER_SIZE);
+        memcpy((void *)m_msg.data, (void *)PID, sizeof(PID));
+        m_msg.msg_id = 'S';
+        m_msg.size   = sizeof(PID) + TELEMETRY_MSG_SIZE_BYTES;
+        m_msg.crc    = GetCRC32Checksum(m_msg);
 
-        SendTelemetryData(&dataHdr);
+        SerialDataWrite(m_msg);
     }
 
     if (GetOutputSettings()) {
@@ -365,14 +379,13 @@ void MainWindow::HandleApplySettings()
         qDebug() << "Size:" << sizeof(outSettings);
 
         /* Clean data buffer for zero-padded crc32 checksum calculation. */
-        memset((void *)dataBuf, 0, sizeof(dataBuf));
-        memcpy((void *)dataBuf, (void *)outSettings, sizeof(outSettings));
-        dataHdr.cmd_id = 'O';
-        dataHdr.size   = sizeof(outSettings);
-        dataHdr.data   = dataBuf;
-        dataHdr.crc    = GetCRC32Checksum(&dataHdr);
+        memset((void *)m_msg.data, 0, TELEMETRY_BUFFER_SIZE);
+        memcpy((void *)m_msg.data, (void *)outSettings, sizeof(outSettings));
+        m_msg.msg_id = 'O';
+        m_msg.size   = sizeof(outSettings) + TELEMETRY_MSG_SIZE_BYTES;
+        m_msg.crc    = GetCRC32Checksum(m_msg);
 
-        SendTelemetryData(&dataHdr);
+        SerialDataWrite(m_msg);
     }
 
     if (GetInputSettings()) {
@@ -386,14 +399,13 @@ void MainWindow::HandleApplySettings()
         qDebug() << "Size:" << sizeof(inSettings);
 
         /* Clean data buffer for zero-padded crc32 checksum calculation. */
-        memset((void *)dataBuf, 0, sizeof(dataBuf));
-        memcpy((void *)dataBuf, (void *)inSettings, sizeof(inSettings));
-        dataHdr.cmd_id = 'I';
-        dataHdr.size   = sizeof(inSettings);
-        dataHdr.data   = dataBuf;
-        dataHdr.crc    = GetCRC32Checksum(&dataHdr);
+        memset((void *)m_msg.data, 0, TELEMETRY_BUFFER_SIZE);
+        memcpy((void *)m_msg.data, (void *)inSettings, sizeof(inSettings));
+        m_msg.msg_id = 'I';
+        m_msg.size   = sizeof(inSettings) + TELEMETRY_MSG_SIZE_BYTES;
+        m_msg.crc    = GetCRC32Checksum(m_msg);
 
-        SendTelemetryData(&dataHdr);
+        SerialDataWrite(m_msg);
     }
 
     if (GetInputModeSettings()) {
@@ -410,14 +422,13 @@ void MainWindow::HandleApplySettings()
         qDebug() << "Size:" << sizeof(modeSettings);
 
         /* Clean data buffer for zero-padded crc32 checksum calculation. */
-        memset((void *)dataBuf, 0, sizeof(dataBuf));
-        memcpy((void *)dataBuf, (void *)modeSettings, sizeof(modeSettings));
-        dataHdr.cmd_id = 'M';
-        dataHdr.size   = sizeof(modeSettings);
-        dataHdr.data   = dataBuf;
-        dataHdr.crc    = GetCRC32Checksum(&dataHdr);
+        memset((void *)m_msg.data, 0, TELEMETRY_BUFFER_SIZE);
+        memcpy((void *)m_msg.data, (void *)modeSettings, sizeof(modeSettings));
+        m_msg.msg_id = 'M';
+        m_msg.size   = sizeof(modeSettings) + TELEMETRY_MSG_SIZE_BYTES;
+        m_msg.crc    = GetCRC32Checksum(m_msg);
 
-        SendTelemetryData(&dataHdr);
+        SerialDataWrite(m_msg);
     }
 
     if (GetSensorSettings()) {
@@ -431,14 +442,13 @@ void MainWindow::HandleApplySettings()
         qDebug() << "Size:" << sizeof(sensorSettings);
 
         /* Clean data buffer for zero-padded crc32 checksum calculation. */
-        memset((void *)dataBuf, 0, sizeof(dataBuf));
-        memcpy((void *)dataBuf, (void *)sensorSettings, sizeof(sensorSettings));
-        dataHdr.cmd_id = 'D';
-        dataHdr.size   = sizeof(sensorSettings);
-        dataHdr.data   = dataBuf;
-        dataHdr.crc    = GetCRC32Checksum(&dataHdr);
+        memset((void *)m_msg.data, 0, TELEMETRY_BUFFER_SIZE);
+        memcpy((void *)m_msg.data, (void *)sensorSettings, sizeof(sensorSettings));
+        m_msg.msg_id = 'D';
+        m_msg.size   = sizeof(sensorSettings) + TELEMETRY_MSG_SIZE_BYTES;
+        m_msg.crc    = GetCRC32Checksum(m_msg);
 
-        SendTelemetryData(&dataHdr);
+        SerialDataWrite(m_msg);
     }
 }
 
@@ -449,10 +459,14 @@ void MainWindow::HandleSaveSettings()
 {
     HandleApplySettings();
 
+    m_msg.sof  = TELEMETRY_MSG_SOF;
+    m_msg.size = TELEMETRY_MSG_SIZE_BYTES;
+    m_msg.res  = 0;
+
     /* Save to EEPROM. */
-    dataHdr.cmd_id = 'c';
-    dataHdr.size   = 0;
-    SendTelemetryData(&dataHdr);
+    m_msg.msg_id = 'c';
+    m_msg.crc    = GetCRC32Checksum(m_msg);
+    SerialDataWrite(m_msg);
 }
 
 /**
@@ -460,99 +474,26 @@ void MainWindow::HandleSaveSettings()
  */
 void MainWindow::ProcessTimeout()
 {
-    /* Get accel data. */
-    //dataHdr.cmd_id = 'a';
-    //dataHdr.size   = 0;
-    //SendTelemetryData(&dataHdr);
-
-    /* Get gyro data. */
-    //dataHdr.cmd_id = 'g';
-    //dataHdr.size   = 0;
-    //SendTelemetryData(&dataHdr);
+    m_msg.sof  = TELEMETRY_MSG_SOF;
+    m_msg.size = TELEMETRY_MSG_SIZE_BYTES;
+    m_msg.res  = 0;
 
     /* Get attitude data. */
-    dataHdr.cmd_id = 'r';
-    dataHdr.size   = 0;
-    SendTelemetryData(&dataHdr);
+    m_msg.msg_id = 'r';
+    m_msg.crc    = GetCRC32Checksum(m_msg);
+    SerialDataWrite(m_msg);
 
     /* Get input values. */
-    dataHdr.cmd_id = 'i';
-    dataHdr.size   = 0;
-    SendTelemetryData(&dataHdr);
+    m_msg.msg_id = 'i';
+    m_msg.crc    = GetCRC32Checksum(m_msg);
+    SerialDataWrite(m_msg);
 
     /* Get offset values. */
-    dataHdr.cmd_id = 'h';
-    dataHdr.size   = 0;
-    SendTelemetryData(&dataHdr);
+    m_msg.msg_id = 'h';
+    m_msg.crc    = GetCRC32Checksum(m_msg);
+    SerialDataWrite(m_msg);
 }
 
-/**
- * @brief MainWindow::ReadSerialData
- */
-void MainWindow::ReadSerialData()
-{
-    qint64 bytesAvailable = m_serialPort.bytesAvailable();
-
-    if (bytesRequired) { /* Continue with previous command. */
-        if (bytesAvailable >= bytesRequired) {
-            if (dataHdr.size % sizeof(quint32)) {
-                /* Clean data buffer for zero-padded crc32 checksum calculation. */
-                memset((void *)dataBuf, 0, sizeof(dataBuf));
-            }
-            m_serialPort.read(dataBuf, dataHdr.size);
-            m_serialPort.read((char *)&dataHdr.crc, sizeof(dataHdr.crc));
-            dataHdr.data = dataBuf;
-            bytesRequired = 0;
-            ProcessSerialCommands(&dataHdr);
-            bytesAvailable -= dataHdr.size + sizeof(dataHdr.crc);
-            if (bytesAvailable) {
-                ReadSerialData();
-            }
-        }
-    } else { /* Read next command from the queue. */
-        if (bytesAvailable >= 2) {
-            m_serialPort.read((char *)&dataHdr, 2);
-            bytesAvailable -= 2;
-            if (dataHdr.size) {
-                if (bytesAvailable >= (dataHdr.size + sizeof(dataHdr.crc))) {
-                    if (dataHdr.size % sizeof(quint32)) {
-                        /* Clean data buffer for zero-padded crc32 checksum calculation. */
-                        memset((void *)dataBuf, 0, sizeof(dataBuf));
-                    }
-                    m_serialPort.read(dataBuf, dataHdr.size);
-                    m_serialPort.read((char *)&dataHdr.crc, sizeof(dataHdr.crc));
-                    dataHdr.data = dataBuf;
-                    ProcessSerialCommands(&dataHdr);
-                    bytesAvailable -= dataHdr.size + sizeof(dataHdr.crc);
-                    if (bytesAvailable) {
-                        ReadSerialData();
-                    }
-                } else {
-                    bytesRequired = dataHdr.size + sizeof(dataHdr.crc);
-                }
-            } else {
-                ProcessSerialCommands(&dataHdr);
-                if (bytesAvailable) {
-                    ReadSerialData();
-                }
-            }
-        }
-    }
-}
-
-/**
- * @brief MainWindow::HandleSerialError
- * @param error
- */
-void MainWindow::HandleSerialError(QSerialPort::SerialPortError error)
-{
-    if (error == QSerialPort::ResourceError) {
-        if (fConnected ) {
-            HandleSerialConnection();
-        }
-        QMessageBox::critical(this, tr("Critical Error"), m_serialPort.errorString());
-    }
-}
 
 /**
  * @brief MainWindow::HandleDataXClicked
@@ -580,25 +521,33 @@ void MainWindow::HandleDataZClicked()
 
 void MainWindow::HandleAccCalibrate()
 {
+    m_msg.sof  = TELEMETRY_MSG_SOF;
+    m_msg.size = TELEMETRY_MSG_SIZE_BYTES;
+    m_msg.res  = 0;
+
     /* Start accel calibration. */
-    dataHdr.cmd_id = ']';
-    dataHdr.size   = 0;
-    SendTelemetryData(&dataHdr);
+    m_msg.msg_id = ']';
+    m_msg.crc    = GetCRC32Checksum(m_msg);
+    SerialDataWrite(m_msg);
 }
 
 void MainWindow::HandleGyroCalibrate()
 {
+    m_msg.sof  = TELEMETRY_MSG_SOF;
+    m_msg.size = TELEMETRY_MSG_SIZE_BYTES;
+    m_msg.res  = 0;
+
     /* Start gyro calibration. */
-    dataHdr.cmd_id = '[';
-    dataHdr.size   = 0;
-    SendTelemetryData(&dataHdr);
+    m_msg.msg_id = '[';
+    m_msg.crc    = GetCRC32Checksum(m_msg);
+    SerialDataWrite(m_msg);
 }
 
 /**
  * @brief MainWindow::ProcessSerialCommands
- * @param pHdr
+ * @param pMsg
  */
-void MainWindow::ProcessSerialCommands(const PDataHdr pHdr)
+void MainWindow::ProcessSerialMessages(const TelemetryMessage &msg)
 {
     float rpy[3];
     float *pfloatBuf;
@@ -607,17 +556,44 @@ void MainWindow::ProcessSerialCommands(const PDataHdr pHdr)
     bool fEnlarge = false;
     double key = QDateTime::currentDateTime().toMSecsSinceEpoch()/1000.0;
 
-    switch (pHdr->cmd_id) {
-    case 'a':
-        if ((pHdr->size == sizeof(float) * 3) && (pHdr->crc == GetCRC32Checksum(pHdr))) {
-            pfloatBuf = (float *)(pHdr->data);
-        } else {
-            qDebug() << "Acc CRC32 mismatch:" << hex << pHdr->crc << "|" << GetCRC32Checksum(pHdr);
+    switch (msg.msg_id) {
+    case 'D': /* Response to new sensor settings. */
+        if (strcmp(msg.data, TELEMETRY_RESP_FAIL) == 0) {
+            qDebug() << "New sensor settings were not applied!";
         }
         break;
-    case 'b':
-        if ((pHdr->size == sizeof(boardStatus)) && (pHdr->crc == GetCRC32Checksum(pHdr))) {
-            boardStatus = *(pHdr->data);
+    case 'I': /* Response to new mixed input settings. */
+        if (strcmp(msg.data, TELEMETRY_RESP_FAIL) == 0) {
+            qDebug() << "New mixed input settings were not applied!";
+        }
+        break;
+    case 'M': /* Response to new input mode settings. */
+        if (strcmp(msg.data, TELEMETRY_RESP_FAIL) == 0) {
+            qDebug() << "New input mode settings were not applied!";
+        }
+        break;
+    case 'O': /* Response to new output settings. */
+        if (strcmp(msg.data, TELEMETRY_RESP_FAIL) == 0) {
+            qDebug() << "New output settings were not applied!";
+        }
+        break;
+    case 'S': /* Response to new PID values. */
+        if (strcmp(msg.data, TELEMETRY_RESP_FAIL) == 0) {
+            qDebug() << "New PID values were not applied!";
+        }
+        break;
+    case 'a': /* Reads accelerometer data. */
+        qDebug() << "Acc data received.";
+        if ((msg.size - TELEMETRY_MSG_SIZE_BYTES) == (sizeof(float) * 3)) {
+            pfloatBuf = (float *)(msg.data);
+        } else {
+            qDebug() << "Acc size mismatch:" << (msg.size - TELEMETRY_MSG_SIZE_BYTES) \
+                     << "|" << (sizeof(float) * 3);
+        }
+        break;
+    case 'b': /* Reads board status. */
+        if ((msg.size - TELEMETRY_MSG_SIZE_BYTES) == sizeof(boardStatus)) {
+            boardStatus = *(msg.data);
             /* Check if sensor detected. */
             if (boardStatus & 1) {
                 ui->groupSensor1->setTitle("Sensor1 (MPU6050):");
@@ -641,46 +617,61 @@ void MainWindow::ProcessSerialCommands(const PDataHdr pHdr)
             qDebug() << "Board status:\r\n  MPU6050 detected:" << ((boardStatus & 1) == 1) \
                      << "\r\n  EEPROM detected:" << ((boardStatus & 4) == 4);
         } else {
-            qDebug() << "Board status CRC32 mismatch:" << hex << pHdr->crc << "|" << GetCRC32Checksum(pHdr);
+            qDebug() << "Board status size mismatch:" << (msg.size - TELEMETRY_MSG_SIZE_BYTES) \
+                     << "|" << sizeof(boardStatus);
         }
         break;
-    case 'd':
-        if ((pHdr->size == sizeof(sensorSettings)) && (pHdr->crc == GetCRC32Checksum(pHdr))) {
-            memcpy((void *)sensorSettings, (void *)pHdr->data, pHdr->size);
+    case 'c': /* Response to Save Settings message. */
+        if (strcmp(msg.data, TELEMETRY_RESP_FAIL) == 0) {
+            qDebug() << "Settings were not saved!";
+            QMessageBox::critical(this, tr("Serial Error"), "Save settings failed!");
+        } else if (strcmp(msg.data, TELEMETRY_RESP_OK) == 0) {
+            qDebug() << "Settings were successfuly saved!";
+        }
+        break;
+    case 'd': /* Reads sensor settings. */
+        qDebug() << "Sensor settings received.";
+        if ((msg.size - TELEMETRY_MSG_SIZE_BYTES) == sizeof(sensorSettings)) {
+            memcpy((void *)sensorSettings, (void *)msg.data, sizeof(sensorSettings));
             SetSensorSettings();
         } else {
-            qDebug() << "Sensor settings CRC32 mismatch:" << hex << pHdr->crc << "|" << GetCRC32Checksum(pHdr);
+            qDebug() << "Sensor settings size mismatch:" << (msg.size - TELEMETRY_MSG_SIZE_BYTES) \
+                     << "|" << sizeof(sensorSettings);
         }
         break;
-    case 'e':
-        if ((pHdr->size == sizeof(i2cErrorInfo)) && (pHdr->crc == GetCRC32Checksum(pHdr))) {
-            memcpy((void *)&i2cErrorInfo, (void *)pHdr->data, pHdr->size);
+    case 'e': /* Reads I2C error info structure. */
+        if ((msg.size - TELEMETRY_MSG_SIZE_BYTES) == sizeof(i2cErrorInfo)) {
+            memcpy((void *)&i2cErrorInfo, (void *)msg.data, sizeof(i2cErrorInfo));
             qDebug() << "I2C Error Info:\r\n  I2C last error code:" << i2cErrorInfo.last_i2c_error \
                      << "\r\n  I2C errors:" << i2cErrorInfo.i2c_error_counter;
         } else {
-            qDebug() << "I2C error info CRC32 mismatch:" << hex << pHdr->crc << "|" << GetCRC32Checksum(pHdr);
+            qDebug() << "I2C error info size mismatch:" << (msg.size - TELEMETRY_MSG_SIZE_BYTES) \
+                     << "|" << sizeof(i2cErrorInfo);
         }
         break;
-    case 'g':
-        if ((pHdr->size == sizeof(float) * 3) && (pHdr->crc == GetCRC32Checksum(pHdr))) {
-            pfloatBuf = (float *)(pHdr->data);
+    case 'g': /* Reads gyroscope data. */
+        qDebug() << "Gyro data received.";
+        if ((msg.size -TELEMETRY_MSG_SIZE_BYTES) == (sizeof(float) * 3)) {
+            pfloatBuf = (float *)(msg.data);
         } else {
-            qDebug() << "Gyro CRC32 mismatch:" << hex << pHdr->crc << "|" << GetCRC32Checksum(pHdr);
+            qDebug() << "Gyro size mismatch:" << (msg.size - TELEMETRY_MSG_SIZE_BYTES) \
+                     << "|" << (sizeof(float) * 3);
         }
         break;
-    case 'h':
-        if ((pHdr->size == sizeof(float) * 3) && (pHdr->crc == GetCRC32Checksum(pHdr))) {
-            memcpy((void *)motorOffset, (void *)pHdr->data, pHdr->size);
+    case 'h': /* Reads motor offset. */
+        if ((msg.size - TELEMETRY_MSG_SIZE_BYTES) == (sizeof(float) * 3)) {
+            memcpy((void *)motorOffset, (void *)msg.data, sizeof(float) * 3);
             ui->labelOffsetPitch->setText(tr("%1").arg(round(motorOffset[0]*RAD2DEG)));
             ui->labelOffsetRoll->setText(tr("%1").arg(round(motorOffset[1]*RAD2DEG)));
             ui->labelOffsetYaw->setText(tr("%1").arg(round(motorOffset[2]*RAD2DEG)));
         } else {
-            qDebug() << "Motor offset CRC32 mismatch:" << hex << pHdr->crc << "|" << GetCRC32Checksum(pHdr);
+            qDebug() << "Motor offset size mismatch:" << (msg.size - TELEMETRY_MSG_SIZE_BYTES) \
+                     << "|" << (sizeof(float) * 3);
         }
         break;
-    case 'i':
-        if ((pHdr->size == sizeof(inputValues)) && (pHdr->crc == GetCRC32Checksum(pHdr))) {
-            memcpy((void *)inputValues, (void *)pHdr->data, pHdr->size);
+    case 'i': /* Reads input values. */
+        if ((msg.size - TELEMETRY_MSG_SIZE_BYTES) == sizeof(inputValues)) {
+            memcpy((void *)inputValues, (void *)msg.data, sizeof(inputValues));
             if (inSettings[0].channel_id < 5) {
                 ui->labelInputPitch->setText(tr("%1").arg(inputValues[inSettings[0].channel_id]));
             } else {
@@ -697,37 +688,43 @@ void MainWindow::ProcessSerialCommands(const PDataHdr pHdr)
                 ui->labelInputYaw->setText(tr("%1").arg(inSettings[2].min_val));
             }
         } else {
-            qDebug() << "Input values CRC32 mismatch:" << hex << pHdr->crc << "|" << GetCRC32Checksum(pHdr);
+            qDebug() << "Input values size mismatch:" << (msg.size - TELEMETRY_MSG_SIZE_BYTES) \
+                     << "|" << sizeof(inputValues);
         }
         break;
-    case 'm':
-        if ((pHdr->size == sizeof(modeSettings)) && (pHdr->crc == GetCRC32Checksum(pHdr))) {
-            memcpy((void *)modeSettings, (void *)pHdr->data, pHdr->size);
+    case 'm': /* Reads input mode settings. */
+        qDebug() << "Input mode settings received.";
+        if ((msg.size - TELEMETRY_MSG_SIZE_BYTES) == sizeof(modeSettings)) {
+            memcpy((void *)modeSettings, (void *)msg.data, sizeof(modeSettings));
             SetInputModeSettings();
         } else {
-            qDebug() << "Input mode settings CRC32 mismatch:" << hex << pHdr->crc << "|" << GetCRC32Checksum(pHdr);
+            qDebug() << "Input mode settings size mismatch:" << (msg.size - TELEMETRY_MSG_SIZE_BYTES) \
+                     << "|" << sizeof(modeSettings);
         }
         break;
-    case 'o':
-        if ((pHdr->size == sizeof(outSettings)) && (pHdr->crc == GetCRC32Checksum(pHdr))) {
-            memcpy((void *)outSettings, (void *)pHdr->data, pHdr->size);
+    case 'o': /* Reads output settings. */
+        qDebug() << "Output settings received.";
+        if ((msg.size - TELEMETRY_MSG_SIZE_BYTES) == sizeof(outSettings)) {
+            memcpy((void *)outSettings, (void *)msg.data, sizeof(outSettings));
             SetOutputSettings();
         } else {
-            qDebug() << "Output settings CRC32 mismatch:" << hex << pHdr->crc << "|" << GetCRC32Checksum(pHdr);
+            qDebug() << "Output settings size mismatch:" << (msg.size - TELEMETRY_MSG_SIZE_BYTES) \
+                     << "|" << sizeof(outSettings);
         }
         break;
-    case 'p':
-        if ((pHdr->size == sizeof(inSettings)) && (pHdr->crc == GetCRC32Checksum(pHdr))) {
-            memcpy((void *)inSettings, (void *)pHdr->data, pHdr->size);
+    case 'p': /* Reads input settings. */
+        qDebug() << "Input settings received.";
+        if ((msg.size - TELEMETRY_MSG_SIZE_BYTES) == sizeof(inSettings)) {
+            memcpy((void *)inSettings, (void *)msg.data, sizeof(inSettings));
             SetInputSettings();
         } else {
-            qDebug() << "Input settings CRC32 mismatch:" << hex << pHdr->crc << "|" << GetCRC32Checksum(pHdr)
-                     << "Size:" << dec << pHdr->size << "|" << sizeof(inSettings);
+            qDebug() << "Input settings size mismatch:" << (msg.size - TELEMETRY_MSG_SIZE_BYTES) \
+                     << "|" << sizeof(inSettings);
         }
         break;
-    case 'r':
-        if ((pHdr->size == sizeof(float) * 4) && (pHdr->crc == GetCRC32Checksum(pHdr))) {
-            pfloatBuf = (float *)(pHdr->data);
+    case 'r': /* Reads attitude quaternion. */
+        if ((msg.size - TELEMETRY_MSG_SIZE_BYTES) == (sizeof(float) * 4)) {
+            pfloatBuf = (float *)(msg.data);
 
             Quaternion2RPY(pfloatBuf, rpy);
 
@@ -780,18 +777,22 @@ void MainWindow::ProcessSerialCommands(const PDataHdr pHdr)
 
             ui->widget->rotateBy(&diffQ);
         } else {
-            qDebug() << "RPY CRC32 mismatch:" << hex << pHdr->crc << "|" << GetCRC32Checksum(pHdr);
+            qDebug() << "RPY size mismatch:" << (msg.size - TELEMETRY_MSG_SIZE_BYTES) \
+                     << "|" << (sizeof(float) * 4);
         }
         break;
-    case 's':
-        if ((pHdr->size == sizeof(PID)) && (pHdr->crc == GetCRC32Checksum(pHdr))) {
-            memcpy((void *)PID, (void *)pHdr->data, pHdr->size);
+    case 's': /* Reads PID settings. */
+        qDebug() << "PID settings received.";
+        if ((msg.size - TELEMETRY_MSG_SIZE_BYTES) == sizeof(PID)) {
+            memcpy((void *)PID, (void *)msg.data, sizeof(PID));
             SetStabilizationSettings();
         } else {
-            qDebug() << "PID settings CRC32 mismatch:" << hex << pHdr->crc << "|" << GetCRC32Checksum(pHdr);
+            qDebug() << "PID settings CRC32 mismatch:" << (msg.crc - TELEMETRY_MSG_SIZE_BYTES) \
+                     << "|" << sizeof(PID);
         }
         break;
-    default:;
+    default:
+        qDebug() << "Unhandled message received!";
     }
 }
 
