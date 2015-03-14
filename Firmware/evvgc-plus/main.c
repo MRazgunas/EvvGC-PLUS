@@ -80,7 +80,7 @@ static msg_t PollMPU6050Thread(void *arg) {
   (void)arg;
   time = chTimeNow();
   while (TRUE) {
-    if ((g_boardStatus & MPU6050_LOW_DETECTED) &&  mpu6050GetNewData(&g_IMU1)) {
+    if (mpu6050GetNewData(&g_IMU1)) {
       chBSemSignal(&bsemIMU1DataReady);
     }
     if ((g_boardStatus & MPU6050_HIGH_DETECTED) && mpu6050GetNewData(&g_IMU2)) {
@@ -105,7 +105,7 @@ static msg_t AttitudeThread(void *arg) {
   attitudeInit();
   while (TRUE) {
     /* Process IMU1 new data ready event. */
-    if ((g_boardStatus & MPU6050_LOW_DETECTED) && (chBSemWait(&bsemIMU1DataReady) == RDY_OK)) {
+    if (chBSemWait(&bsemIMU1DataReady) == RDY_OK) {
       if (g_IMU1.flags & IMU_CALIBRATE_MASK) {
         imuCalibrate(&g_IMU1);
       } else {
@@ -185,6 +185,10 @@ int main(void) {
   /* Initializes the MPU6050 sensor2. */
   if (mpu6050Init(g_IMU2.addr)) {
     g_boardStatus |= MPU6050_HIGH_DETECTED;
+  } else if (g_i2cErrorInfo.last_i2c_error == I2CD_ACK_FAILURE) {
+    /* Device not found. */
+    g_i2cErrorInfo.last_i2c_error = I2CD_NO_ERROR;
+    g_i2cErrorInfo.i2c_error_counter--;
   }
 
   if (g_boardStatus & MPU6050_LOW_DETECTED) {

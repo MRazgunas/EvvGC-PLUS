@@ -27,8 +27,32 @@
 #include "eeprom.h"
 #include "misc.h"
 
+/* Predefined telemetry responses. */
+#define TELEMETRY_RESP_OK         "_OK_"
+#define TELEMETRY_RESP_FAIL       "FAIL"
+
+/* Telemetry start-of-frame signature. */
+#define TELEMETRY_MSG_SOF         0xBD
+/* Empty message ID. */
+#define TELEMETRY_MSG_NOMSG       0x00
 /* Telemetry buffer size in bytes.  */
-#define TELEMETRY_BUFFER_SIZE   32
+#define TELEMETRY_BUFFER_SIZE     0x20
+/* Telemetry message header size in bytes.  */
+#define TELEMETRY_MSG_HDR_SIZE    0x04
+/* Telemetry message checksum size in bytes.  */
+#define TELEMETRY_MSG_CRC_SIZE    0x04
+/* Telemetry message header + crc size in bytes.  */
+#define TELEMETRY_MSG_SIZE        ( TELEMETRY_MSG_HDR_SIZE + TELEMETRY_MSG_CRC_SIZE )
+
+/* Telemetry message structure. */
+typedef struct tagMessage {
+  uint8_t sof;      /* Start of frame signature. */
+  uint8_t msg_id;   /* Telemetry message ID. */
+  uint8_t size;     /* Size of whole telemetry message including header and additional data. */
+  uint8_t res;      /* Reserved. Set to 0. */
+  uint8_t data[TELEMETRY_BUFFER_SIZE];
+  uint32_t crc;
+} __attribute__((packed)) Message, *PMessage;
 
 /**
  * Global variables
@@ -43,185 +67,211 @@ BaseChannel *g_chnp;
 /**
  * Local variables
  */
-/* Telemetry data header. */
-static DataHdr dataHdr;
-/* Data buffer for various telemetry IO operations. */
-static uint8_t dataBuf[TELEMETRY_BUFFER_SIZE];
+/* Telemetry message. */
+static Message msg = {
+  TELEMETRY_MSG_SOF,
+  TELEMETRY_MSG_NOMSG,
+  TELEMETRY_MSG_SIZE,
+  0,
+  {0},
+  0xFFFFFFFF
+};
 
-size_t bytesRequired = 0;
+static size_t bytesRequired = 0;
 
 /**
  * @brief  Calculates CRC32 checksum of received data buffer.
- * @param  pHdr - pointer to data header structure.
+ * @param  pMsg - pointer to telemetry message structure.
  * @return CRC32 checksum of received zero-padded data buffer.
  */
-static uint32_t telemetryGetCRC32Checksum(const PDataHdr pHdr) {
-  uint32_t crc_length = pHdr->size / sizeof(uint32_t);
-  if (pHdr->size % sizeof(uint32_t)) {
+static uint32_t telemetryGetCRC32Checksum(const PMessage pMsg) {
+  uint32_t crc_length = (pMsg->size - TELEMETRY_MSG_CRC_SIZE) / sizeof(uint32_t);
+  if ((pMsg->size - TELEMETRY_MSG_CRC_SIZE) % sizeof(uint32_t)) {
     crc_length++;
   }
-  return crcCRC32((const uint32_t *)pHdr->data, crc_length);
+  return crcCRC32((const uint32_t *)pMsg, crc_length);
 }
 
 /**
- * @brief
- * @details
+ * @brief  Sends data to selected serial port.
+ * @param  pMsg - pointer to telemetry message structure to be sent.
+ * @return none.
  */
-static void telemetrySendSerialData(const PDataHdr pHdr) {
-  /* Sends command ID and data size. */
-  chnWrite(g_chnp, (const uint8_t *)pHdr, 2);
-  if (pHdr->size) {
-    /* Sends actual data. */
-    chnWrite(g_chnp, pHdr->data, pHdr->size);
-    /* Sends cyclic redundancy check data. */
-    chnWrite(g_chnp, (const uint8_t *)&pHdr->crc, sizeof(uint32_t));
-  }
+static void telemetrySendSerialData(const PMessage pMsg) {
+  /* Sends message header and actual data if any. */
+  chnWrite(g_chnp, (const uint8_t *)pMsg, pMsg->size - TELEMETRY_MSG_CRC_SIZE);
+  /* Sends cyclic redundancy checksum. */
+  chnWrite(g_chnp, (const uint8_t *)&pMsg->crc, TELEMETRY_MSG_CRC_SIZE);
+}
+
+/**
+ * @brief  Prepares positive telemetry response.
+ * @param  pMsg - pointer to telemetry message structure.
+ * @return none.
+ */
+static void telemetryPositiveResponse(const PMessage pMsg) {
+  memcpy((void *)pMsg->data, (void *)TELEMETRY_RESP_OK, sizeof(TELEMETRY_RESP_OK) - 1);
+  pMsg->size = sizeof(TELEMETRY_RESP_OK) + TELEMETRY_MSG_SIZE - 1;
+  pMsg->crc  = telemetryGetCRC32Checksum(pMsg);
+}
+
+/**
+ * @brief  Prepares negative telemetry response.
+ * @param  pMsg - pointer to telemetry message structure.
+ * @return none.
+ */
+static void telemetryNegativeResponse(const PMessage pMsg) {
+  memcpy((void *)pMsg->data, (void *)TELEMETRY_RESP_FAIL, sizeof(TELEMETRY_RESP_FAIL) - 1);
+  pMsg->size = sizeof(TELEMETRY_RESP_FAIL) + TELEMETRY_MSG_SIZE - 1;
+  pMsg->crc  = telemetryGetCRC32Checksum(pMsg);
 }
 
 /**
  * @brief  Command processor.
- * @param  pHdr - pointer to data header structure to be processed.
+ * @param  pMsg - pointer to telemetry message structure to be processed.
  * @return none.
  */
-static void telemetryProcessCommand(const PDataHdr pHdr) {
-  switch (pHdr->cmd_id) {
+static void telemetryProcessCommand(const PMessage pMsg) {
+  switch (pMsg->msg_id) {
   case 'D': /* Reads new sensor settings; */
-    if ((pHdr->size == sizeof(g_sensorSettings)) && (pHdr->crc == telemetryGetCRC32Checksum(pHdr))) {
-      sensorSettingsUpdate((uint8_t *)pHdr->data);
+    if ((pMsg->size - TELEMETRY_MSG_SIZE) == sizeof(g_sensorSettings)) {
+      sensorSettingsUpdate((uint8_t *)pMsg->data);
+      telemetryPositiveResponse(pMsg);
+    } else {
+      telemetryNegativeResponse(pMsg);
     }
     break;
   case 'I': /* Reads new mixed input settings; */
-    if ((pHdr->size == sizeof(g_mixedInput)) && (pHdr->crc == telemetryGetCRC32Checksum(pHdr))) {
-      mixedInputSettingsUpdate((PMixedInputStruct)pHdr->data);
+    if ((pMsg->size - TELEMETRY_MSG_SIZE) == sizeof(g_mixedInput)) {
+      mixedInputSettingsUpdate((PMixedInputStruct)pMsg->data);
+      telemetryPositiveResponse(pMsg);
+    } else {
+      telemetryNegativeResponse(pMsg);
     }
     break;
   case 'M': /* Reads new input mode settings; */
-    if ((pHdr->size == sizeof(g_modeSettings)) && (pHdr->crc == telemetryGetCRC32Checksum(pHdr))) {
-      inputModeSettingsUpdate((PInputModeStruct)pHdr->data);
+    if ((pMsg->size - TELEMETRY_MSG_SIZE) == sizeof(g_modeSettings)) {
+      inputModeSettingsUpdate((PInputModeStruct)pMsg->data);
+      telemetryPositiveResponse(pMsg);
+    } else {
+      telemetryNegativeResponse(pMsg);
     }
     break;
   case 'O': /* Reads new output settings; */
-    if ((pHdr->size == sizeof(g_pwmOutput)) && (pHdr->crc == telemetryGetCRC32Checksum(pHdr))) {
-      pwmOutputSettingsUpdate((PPWMOutputStruct)pHdr->data);
+    if ((pMsg->size - TELEMETRY_MSG_SIZE) == sizeof(g_pwmOutput)) {
+      pwmOutputSettingsUpdate((PPWMOutputStruct)pMsg->data);
+      telemetryPositiveResponse(pMsg);
+    } else {
+      telemetryNegativeResponse(pMsg);
     }
     break;
   case 'S': /* Reads new PID values; */
-    if ((pHdr->size == sizeof(g_pidSettings)) && (pHdr->crc == telemetryGetCRC32Checksum(pHdr))) {
-      pidSettingsUpdate((PPIDSettings)pHdr->data);
+    if ((pMsg->size - TELEMETRY_MSG_SIZE) == sizeof(g_pidSettings)) {
+      pidSettingsUpdate((PPIDSettings)pMsg->data);
+      telemetryPositiveResponse(pMsg);
+    } else {
+      telemetryNegativeResponse(pMsg);
     }
     break;
   case 'a': /* Outputs accelerometer data; */
-    memcpy((void *)dataBuf, (void *)g_IMU1.accelData, sizeof(g_IMU1.accelData));
-    pHdr->size = sizeof(g_IMU1.accelData);
-    pHdr->data = dataBuf;
-    pHdr->crc  = telemetryGetCRC32Checksum(pHdr);
-    telemetrySendSerialData(pHdr);
+    memcpy((void *)pMsg->data, (void *)g_IMU1.accelData, sizeof(g_IMU1.accelData));
+    pMsg->size = sizeof(g_IMU1.accelData) + TELEMETRY_MSG_SIZE;
+    pMsg->crc  = telemetryGetCRC32Checksum(pMsg);
     break;
   case 'b': /* Outputs board status; */
-    memcpy((void *)dataBuf, (void *)&g_boardStatus, sizeof(g_boardStatus));
-    pHdr->size = sizeof(g_boardStatus);
-    pHdr->data = dataBuf;
-    pHdr->crc  = telemetryGetCRC32Checksum(pHdr);
-    telemetrySendSerialData(pHdr);
+    memcpy((void *)pMsg->data, (void *)&g_boardStatus, sizeof(g_boardStatus));
+    pMsg->size = sizeof(g_boardStatus) + TELEMETRY_MSG_SIZE;
+    pMsg->crc  = telemetryGetCRC32Checksum(pMsg);
     break;
   case 'c': /* Saves settings to EEPROM; */
     if (eepromSaveSettings()) {
+      telemetryPositiveResponse(pMsg);
+    } else {
+      telemetryNegativeResponse(pMsg);
     }
     break;
   case 'd': /* Outputs sensor settings; */
     /* Clean data buffer for zero-padded crc32 checksum calculation. */
-    memset((void *)dataBuf, 0, sizeof(dataBuf));
-    memcpy((void *)dataBuf, (void *)g_sensorSettings, sizeof(g_sensorSettings));
-    pHdr->size = sizeof(g_sensorSettings);
-    pHdr->data = dataBuf;
-    pHdr->crc  = telemetryGetCRC32Checksum(pHdr);
-    telemetrySendSerialData(pHdr);
+    memset((void *)pMsg->data, 0, TELEMETRY_BUFFER_SIZE);
+    memcpy((void *)pMsg->data, (void *)g_sensorSettings, sizeof(g_sensorSettings));
+    pMsg->size = sizeof(g_sensorSettings) + TELEMETRY_MSG_SIZE;
+    pMsg->crc  = telemetryGetCRC32Checksum(pMsg);
     break;
   case 'e': /* Outputs I2C error info structure; */
-    memcpy((void *)dataBuf, (void *)&g_i2cErrorInfo, sizeof(g_i2cErrorInfo));
-    pHdr->size = sizeof(g_i2cErrorInfo);
-    pHdr->data = dataBuf;
-    pHdr->crc  = telemetryGetCRC32Checksum(pHdr);
-    telemetrySendSerialData(pHdr);
+    memcpy((void *)pMsg->data, (void *)&g_i2cErrorInfo, sizeof(g_i2cErrorInfo));
+    pMsg->size = sizeof(g_i2cErrorInfo) + TELEMETRY_MSG_SIZE;
+    pMsg->crc  = telemetryGetCRC32Checksum(pMsg);
     break;
   case 'g': /* Outputs gyroscope data; */
-    memcpy((void *)dataBuf, (void *)g_IMU1.gyroData, sizeof(g_IMU1.gyroData));
-    pHdr->size = sizeof(g_IMU1.gyroData);
-    pHdr->data = dataBuf;
-    pHdr->crc  = telemetryGetCRC32Checksum(pHdr);
-    telemetrySendSerialData(pHdr);
+    memcpy((void *)pMsg->data, (void *)g_IMU1.gyroData, sizeof(g_IMU1.gyroData));
+    pMsg->size = sizeof(g_IMU1.gyroData) + TELEMETRY_MSG_SIZE;
+    pMsg->crc  = telemetryGetCRC32Checksum(pMsg);
     break;
   case 'h': /* Outputs motor offset data; */
-    memcpy((void *)dataBuf, (void *)g_motorOffset, sizeof(g_motorOffset));
-    pHdr->size = sizeof(g_motorOffset);
-    pHdr->data = dataBuf;
-    pHdr->crc  = telemetryGetCRC32Checksum(pHdr);
-    telemetrySendSerialData(pHdr);
+    memcpy((void *)pMsg->data, (void *)g_motorOffset, sizeof(g_motorOffset));
+    pMsg->size = sizeof(g_motorOffset) + TELEMETRY_MSG_SIZE;
+    pMsg->crc  = telemetryGetCRC32Checksum(pMsg);
     break;
   case 'i': /* Outputs input data values; */
     /* Clean data buffer for zero-padded crc32 checksum calculation. */
-    memset((void *)dataBuf, 0, sizeof(dataBuf));
-    memcpy((void *)dataBuf, (void *)g_inputValues, sizeof(g_inputValues));
-    pHdr->size = sizeof(g_inputValues);
-    pHdr->data = dataBuf;
-    pHdr->crc  = telemetryGetCRC32Checksum(pHdr);
-    telemetrySendSerialData(pHdr);
+    memset((void *)pMsg->data, 0, TELEMETRY_BUFFER_SIZE);
+    memcpy((void *)pMsg->data, (void *)g_inputValues, sizeof(g_inputValues));
+    pMsg->size = sizeof(g_inputValues) + TELEMETRY_MSG_SIZE;
+    pMsg->crc  = telemetryGetCRC32Checksum(pMsg);
     break;
   case 'm': /* Outputs input mode settings; */
-    memcpy((void *)dataBuf, (void *)g_modeSettings, sizeof(g_modeSettings));
-    pHdr->size = sizeof(g_modeSettings);
-    pHdr->data = dataBuf;
-    pHdr->crc  = telemetryGetCRC32Checksum(pHdr);
-    telemetrySendSerialData(pHdr);
+    memcpy((void *)pMsg->data, (void *)g_modeSettings, sizeof(g_modeSettings));
+    pMsg->size = sizeof(g_modeSettings) + TELEMETRY_MSG_SIZE;
+    pMsg->crc  = telemetryGetCRC32Checksum(pMsg);
     break;
   case 'o': /* Outputs PWM output settings; */
     /* Clean data buffer for zero-padded crc32 checksum calculation. */
-    memset((void *)dataBuf, 0, sizeof(dataBuf));
-    memcpy((void *)dataBuf, (void *)g_pwmOutput, sizeof(g_pwmOutput));
-    pHdr->size = sizeof(g_pwmOutput);
-    pHdr->data = dataBuf;
-    pHdr->crc  = telemetryGetCRC32Checksum(pHdr);
-    telemetrySendSerialData(pHdr);
+    memset((void *)pMsg->data, 0, TELEMETRY_BUFFER_SIZE);
+    memcpy((void *)pMsg->data, (void *)g_pwmOutput, sizeof(g_pwmOutput));
+    pMsg->size = sizeof(g_pwmOutput) + TELEMETRY_MSG_SIZE;
+    pMsg->crc  = telemetryGetCRC32Checksum(pMsg);
     break;
   case 'p': /* Outputs mixed input settings. */
     /* Clean data buffer for zero-padded crc32 checksum calculation. */
-    memset((void *)dataBuf, 0, sizeof(dataBuf));
-    memcpy((void *)dataBuf, (void *)g_mixedInput, sizeof(g_mixedInput));
-    pHdr->size = sizeof(g_mixedInput);
-    pHdr->data = dataBuf;
-    pHdr->crc  = telemetryGetCRC32Checksum(pHdr);
-    telemetrySendSerialData(pHdr);
+    memset((void *)pMsg->data, 0, TELEMETRY_BUFFER_SIZE);
+    memcpy((void *)pMsg->data, (void *)g_mixedInput, sizeof(g_mixedInput));
+    pMsg->size = sizeof(g_mixedInput) + TELEMETRY_MSG_SIZE;
+    pMsg->crc  = telemetryGetCRC32Checksum(pMsg);
     break;
   case 'r': /* Outputs camera attitude data; */
-    memcpy((void *)dataBuf, (void *)g_IMU1.qIMU, sizeof(g_IMU1.qIMU));
-    pHdr->size = sizeof(g_IMU1.qIMU);
-    pHdr->data = dataBuf;
-    pHdr->crc  = telemetryGetCRC32Checksum(pHdr);
-    telemetrySendSerialData(pHdr);
+    memcpy((void *)pMsg->data, (void *)g_IMU1.qIMU, sizeof(g_IMU1.qIMU));
+    pMsg->size = sizeof(g_IMU1.qIMU) + TELEMETRY_MSG_SIZE;
+    pMsg->crc  = telemetryGetCRC32Checksum(pMsg);
     break;
   case 's': /* Outputs PID settings; */
     /* Clean data buffer for zero-padded crc32 checksum calculation. */
-    memset((void *)dataBuf, 0, sizeof(dataBuf));
-    memcpy((void *)dataBuf, (void *)g_pidSettings, sizeof(g_pidSettings));
-    pHdr->size = sizeof(g_pidSettings);
-    pHdr->data = dataBuf;
-    pHdr->crc  = telemetryGetCRC32Checksum(pHdr);
-    telemetrySendSerialData(pHdr);
+    memset((void *)pMsg->data, 0, TELEMETRY_BUFFER_SIZE);
+    memcpy((void *)pMsg->data, (void *)g_pidSettings, sizeof(g_pidSettings));
+    pMsg->size = sizeof(g_pidSettings) + TELEMETRY_MSG_SIZE;
+    pMsg->crc  = telemetryGetCRC32Checksum(pMsg);
     break;
   case '[': /* Calibrate gyroscope. */
     imuCalibrationStart(&g_IMU1, IMU_CALIBRATE_GYRO);
+    telemetryPositiveResponse(pMsg);
     break;
   case ']': /* Calibrate accelerometer. */
     imuCalibrationStart(&g_IMU1, IMU_CALIBRATE_ACCEL);
+    telemetryPositiveResponse(pMsg);
     break;
   case '{': /* Calibrate gyroscope. */
     imuCalibrationStart(&g_IMU2, IMU_CALIBRATE_GYRO);
+    telemetryPositiveResponse(pMsg);
     break;
   case '}': /* Calibrate accelerometer. */
     imuCalibrationStart(&g_IMU2, IMU_CALIBRATE_ACCEL);
+    telemetryPositiveResponse(pMsg);
     break;
-  default:;
+  default: /* Unknown command. */
+    telemetryNegativeResponse(pMsg);
   }
+  pMsg->sof = TELEMETRY_MSG_SOF;
+  pMsg->res = 0;
+  telemetrySendSerialData(pMsg);
 }
 
 /**
@@ -235,47 +285,53 @@ void telemetryReadSerialData(void) {
   chSysUnlock();
   if (bytesRequired) { /* Continue with previous command. */
     if (bytesAvailable >= bytesRequired) {
-      if (dataHdr.size % sizeof(uint32_t)) {
+      if ((msg.size - TELEMETRY_MSG_SIZE) % sizeof(uint32_t)) {
         /* Clean data buffer for zero-padded crc32 checksum calculation. */
-        memset((void *)dataBuf, 0, sizeof(dataBuf));
+        memset((void *)msg.data, 0, TELEMETRY_BUFFER_SIZE);
       }
-      chnRead(g_chnp, dataBuf, dataHdr.size);
-      chnRead(g_chnp, (uint8_t *)&dataHdr.crc, sizeof(dataHdr.crc));
-      dataHdr.data = dataBuf;
+      if (msg.size - TELEMETRY_MSG_SIZE) {
+        chnRead(g_chnp, (uint8_t *)msg.data, msg.size - TELEMETRY_MSG_SIZE);
+      }
+      chnRead(g_chnp, (uint8_t *)&msg.crc, TELEMETRY_MSG_CRC_SIZE);
+      if (msg.crc == telemetryGetCRC32Checksum(&msg)) {
+        telemetryProcessCommand(&msg);
+      }
       bytesRequired = 0;
-      telemetryProcessCommand(&dataHdr);
-      bytesAvailable -= dataHdr.size + sizeof(dataHdr.crc);
+      bytesAvailable -= msg.size - TELEMETRY_MSG_HDR_SIZE;
       if (bytesAvailable) {
         telemetryReadSerialData();
       }
     }
-  } else { /* Read next command from the queue. */
-    if (bytesAvailable >= (sizeof(dataHdr.cmd_id) + sizeof(dataHdr.size))) {
-      chnRead(g_chnp, (uint8_t *)&dataHdr, sizeof(dataHdr.cmd_id) + sizeof(dataHdr.size));
-      bytesAvailable -= sizeof(dataHdr.cmd_id) + sizeof(dataHdr.size);
-      if (dataHdr.size) {
-        if (bytesAvailable >= (dataHdr.size + sizeof(dataHdr.crc))) {
-          if (dataHdr.size % sizeof(uint32_t)) {
-            /* Clean data buffer for zero-padded crc32 checksum calculation. */
-            memset((void *)dataBuf, 0, sizeof(dataBuf));
-          }
-          chnRead(g_chnp, dataBuf, dataHdr.size);
-          chnRead(g_chnp, (uint8_t *)&dataHdr.crc, sizeof(dataHdr.crc));
-          dataHdr.data = dataBuf;
-          telemetryProcessCommand(&dataHdr);
-          bytesAvailable -= dataHdr.size + sizeof(dataHdr.crc);
-          if (bytesAvailable) {
-            telemetryReadSerialData();
-          }
-        } else {
-          bytesRequired = dataHdr.size + sizeof(dataHdr.crc);
+  } else if (bytesAvailable >= TELEMETRY_MSG_HDR_SIZE) {
+    /* Read next command from the queue. */
+    chnRead(g_chnp, (uint8_t *)&msg, TELEMETRY_MSG_HDR_SIZE);
+    bytesAvailable -= TELEMETRY_MSG_HDR_SIZE;
+    /* Check if message header is not corrupted. */
+    if ((msg.sof == TELEMETRY_MSG_SOF) &&
+        (msg.size >= TELEMETRY_MSG_SIZE) &&
+        (msg.size <= TELEMETRY_BUFFER_SIZE)) {
+      /* Read message data. */
+      if (bytesAvailable >= (size_t)(msg.size - TELEMETRY_MSG_HDR_SIZE)) {
+        if ((msg.size - TELEMETRY_MSG_SIZE) % sizeof(uint32_t)) {
+          /* Clean data buffer for zero-padded crc32 checksum calculation. */
+          memset((void *)msg.data, 0, TELEMETRY_BUFFER_SIZE);
         }
-      } else {
-        telemetryProcessCommand(&dataHdr);
+        if (msg.size - TELEMETRY_MSG_SIZE) {
+          chnRead(g_chnp, (uint8_t *)msg.data, msg.size - TELEMETRY_MSG_SIZE);
+        }
+        chnRead(g_chnp, (uint8_t *)&msg.crc, TELEMETRY_MSG_CRC_SIZE);
+        if (msg.crc == telemetryGetCRC32Checksum(&msg)) {
+          telemetryProcessCommand(&msg);
+        }
+        bytesAvailable -= msg.size - TELEMETRY_MSG_HDR_SIZE;
         if (bytesAvailable) {
           telemetryReadSerialData();
         }
+      } else {
+        bytesRequired = msg.size - TELEMETRY_MSG_HDR_SIZE;
       }
+    } else if (bytesAvailable) {
+      telemetryReadSerialData();
     }
   }
 }

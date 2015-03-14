@@ -27,7 +27,6 @@
 #include <string.h>
 
 #include "eeprom.h"
-#include "telemetry.h"
 #include "attitude.h"
 #include "pwmio.h"
 #include "mpu6050.h"

@@ -17,14 +17,7 @@
 #ifndef TELEMETRY_H_
 #define TELEMETRY_H_
 
-typedef struct tagDataHdr {
-  uint8_t cmd_id;
-  uint8_t size;
-  const uint8_t *data;
-  uint32_t crc;
-} __attribute__((packed)) DataHdr, *PDataHdr;
-
-/* Console input/output. */
+/* Console input/output channel. */
 extern BaseChannel *g_chnp;
 
 #ifdef __cplusplus
