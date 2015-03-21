@@ -42,6 +42,9 @@
           <property name="text">
            <string>Yaw:</string>
           </property>
+          <property name="textFormat">
+           <enum>Qt::PlainText</enum>
+          </property>
          </widget>
         </item>
         <item row="5" column="0">
@@ -59,6 +62,9 @@
         </item>
         <item row="4" column="3">
          <widget class="QSpinBox" name="spinYaw_D">
+          <property name="accelerated">
+           <bool>true</bool>
+          </property>
           <property name="maximum">
            <number>255</number>
           </property>
@@ -66,6 +72,9 @@
         </item>
         <item row="4" column="1">
          <widget class="QSpinBox" name="spinYaw_P">
+          <property name="accelerated">
+           <bool>true</bool>
+          </property>
           <property name="maximum">
            <number>255</number>
           </property>
@@ -79,6 +88,9 @@
           <property name="text">
            <string>P</string>
           </property>
+          <property name="textFormat">
+           <enum>Qt::PlainText</enum>
+          </property>
           <property name="alignment">
            <set>Qt::AlignCenter</set>
           </property>
@@ -89,6 +101,9 @@
           <property name="text">
            <string>I</string>
           </property>
+          <property name="textFormat">
+           <enum>Qt::PlainText</enum>
+          </property>
           <property name="alignment">
            <set>Qt::AlignCenter</set>
           </property>
@@ -96,6 +111,9 @@
         </item>
         <item row="4" column="2">
          <widget class="QSpinBox" name="spinYaw_I">
+          <property name="accelerated">
+           <bool>true</bool>
+          </property>
           <property name="maximum">
            <number>255</number>
           </property>
@@ -105,6 +123,9 @@
          <widget class="QLabel" name="labelD">
           <property name="text">
            <string>D</string>
+          </property>
+          <property name="textFormat">
+           <enum>Qt::PlainText</enum>
           </property>
           <property name="alignment">
            <set>Qt::AlignCenter</set>
@@ -122,6 +143,9 @@
           <property name="text">
            <string>Roll:</string>
           </property>
+          <property name="textFormat">
+           <enum>Qt::PlainText</enum>
+          </property>
          </widget>
         </item>
         <item row="2" column="0">
@@ -135,10 +159,16 @@
           <property name="text">
            <string>Pitch:</string>
           </property>
+          <property name="textFormat">
+           <enum>Qt::PlainText</enum>
+          </property>
          </widget>
         </item>
         <item row="3" column="1">
          <widget class="QSpinBox" name="spinRoll_P">
+          <property name="accelerated">
+           <bool>true</bool>
+          </property>
           <property name="maximum">
            <number>255</number>
           </property>
@@ -146,6 +176,9 @@
         </item>
         <item row="3" column="2">
          <widget class="QSpinBox" name="spinRoll_I">
+          <property name="accelerated">
+           <bool>true</bool>
+          </property>
           <property name="maximum">
            <number>255</number>
           </property>
@@ -153,6 +186,9 @@
         </item>
         <item row="3" column="3">
          <widget class="QSpinBox" name="spinRoll_D">
+          <property name="accelerated">
+           <bool>true</bool>
+          </property>
           <property name="maximum">
            <number>255</number>
           </property>
@@ -160,6 +196,9 @@
         </item>
         <item row="2" column="1">
          <widget class="QSpinBox" name="spinPitch_P">
+          <property name="accelerated">
+           <bool>true</bool>
+          </property>
           <property name="maximum">
            <number>255</number>
           </property>
@@ -167,6 +206,9 @@
         </item>
         <item row="2" column="2">
          <widget class="QSpinBox" name="spinPitch_I">
+          <property name="accelerated">
+           <bool>true</bool>
+          </property>
           <property name="maximum">
            <number>255</number>
           </property>
@@ -174,6 +216,9 @@
         </item>
         <item row="2" column="3">
          <widget class="QSpinBox" name="spinPitch_D">
+          <property name="accelerated">
+           <bool>true</bool>
+          </property>
           <property name="maximum">
            <number>255</number>
           </property>
@@ -191,6 +236,9 @@
           <property name="text">
            <string>Command</string>
           </property>
+          <property name="textFormat">
+           <enum>Qt::PlainText</enum>
+          </property>
           <property name="alignment">
            <set>Qt::AlignCenter</set>
           </property>
@@ -207,6 +255,9 @@
           <property name="text">
            <string>Yaw:</string>
           </property>
+          <property name="textFormat">
+           <enum>Qt::PlainText</enum>
+          </property>
          </widget>
         </item>
         <item row="3" column="7">
@@ -216,6 +267,9 @@
             <horstretch>0</horstretch>
             <verstretch>0</verstretch>
            </sizepolicy>
+          </property>
+          <property name="currentIndex">
+           <number>5</number>
           </property>
           <item>
            <property name="text">
@@ -257,6 +311,9 @@
             <verstretch>0</verstretch>
            </sizepolicy>
           </property>
+          <property name="currentIndex">
+           <number>3</number>
+          </property>
           <property name="maxVisibleItems">
            <number>4</number>
           </property>
@@ -293,6 +350,9 @@
             <verstretch>0</verstretch>
            </sizepolicy>
           </property>
+          <property name="currentIndex">
+           <number>3</number>
+          </property>
           <property name="maxVisibleItems">
            <number>4</number>
           </property>
@@ -325,6 +385,9 @@
             <horstretch>0</horstretch>
             <verstretch>0</verstretch>
            </sizepolicy>
+          </property>
+          <property name="currentIndex">
+           <number>5</number>
           </property>
           <item>
            <property name="text">
@@ -373,6 +436,9 @@
         </item>
         <item row="2" column="3">
          <widget class="QSpinBox" name="spinPitchNumPoles">
+          <property name="accelerated">
+           <bool>false</bool>
+          </property>
           <property name="minimum">
            <number>12</number>
           </property>
@@ -389,6 +455,12 @@
         </item>
         <item row="2" column="1">
          <widget class="QSpinBox" name="spinPitchPower">
+          <property name="accelerated">
+           <bool>true</bool>
+          </property>
+          <property name="suffix">
+           <string>%</string>
+          </property>
           <property name="maximum">
            <number>100</number>
           </property>
@@ -405,12 +477,18 @@
           <property name="text">
            <string>Pitch:</string>
           </property>
+          <property name="textFormat">
+           <enum>Qt::PlainText</enum>
+          </property>
          </widget>
         </item>
         <item row="1" column="3">
          <widget class="QLabel" name="labelNumPoles">
           <property name="text">
            <string>Poles, N</string>
+          </property>
+          <property name="textFormat">
+           <enum>Qt::PlainText</enum>
           </property>
           <property name="alignment">
            <set>Qt::AlignCenter</set>
@@ -461,6 +539,12 @@
         </item>
         <item row="3" column="1">
          <widget class="QSpinBox" name="spinRollPower">
+          <property name="accelerated">
+           <bool>true</bool>
+          </property>
+          <property name="suffix">
+           <string>%</string>
+          </property>
           <property name="maximum">
            <number>100</number>
           </property>
@@ -468,6 +552,12 @@
         </item>
         <item row="4" column="1">
          <widget class="QSpinBox" name="spinYawPower">
+          <property name="accelerated">
+           <bool>true</bool>
+          </property>
+          <property name="suffix">
+           <string>%</string>
+          </property>
           <property name="maximum">
            <number>100</number>
           </property>
@@ -480,6 +570,9 @@
             <horstretch>0</horstretch>
             <verstretch>0</verstretch>
            </sizepolicy>
+          </property>
+          <property name="currentIndex">
+           <number>3</number>
           </property>
           <property name="maxVisibleItems">
            <number>4</number>
@@ -509,7 +602,10 @@
         <item row="1" column="1">
          <widget class="QLabel" name="labelPower">
           <property name="text">
-           <string>Power, %</string>
+           <string>Power</string>
+          </property>
+          <property name="textFormat">
+           <enum>Qt::PlainText</enum>
           </property>
           <property name="alignment">
            <set>Qt::AlignCenter</set>
@@ -535,7 +631,10 @@
         <item row="1" column="7">
          <widget class="QLabel" name="labelDeadTime">
           <property name="text">
-           <string>Dead Time, ns</string>
+           <string>Dead Time</string>
+          </property>
+          <property name="textFormat">
+           <enum>Qt::PlainText</enum>
           </property>
           <property name="alignment">
            <set>Qt::AlignCenter</set>
@@ -553,6 +652,9 @@
           <property name="text">
            <string>Roll:</string>
           </property>
+          <property name="textFormat">
+           <enum>Qt::PlainText</enum>
+          </property>
          </widget>
         </item>
         <item row="4" column="7">
@@ -562,6 +664,9 @@
             <horstretch>0</horstretch>
             <verstretch>0</verstretch>
            </sizepolicy>
+          </property>
+          <property name="currentIndex">
+           <number>5</number>
           </property>
           <item>
            <property name="text">
@@ -665,6 +770,9 @@
           <property name="text">
            <string>Yaw:</string>
           </property>
+          <property name="textFormat">
+           <enum>Qt::PlainText</enum>
+          </property>
          </widget>
         </item>
         <item row="3" column="0">
@@ -677,6 +785,9 @@
           </property>
           <property name="text">
            <string>Roll:</string>
+          </property>
+          <property name="textFormat">
+           <enum>Qt::PlainText</enum>
           </property>
          </widget>
         </item>
@@ -704,12 +815,18 @@
           <property name="text">
            <string>Pitch:</string>
           </property>
+          <property name="textFormat">
+           <enum>Qt::PlainText</enum>
+          </property>
          </widget>
         </item>
         <item row="1" column="6">
          <widget class="QLabel" name="labelInputMeas">
           <property name="text">
            <string>Meas.</string>
+          </property>
+          <property name="textFormat">
+           <enum>Qt::PlainText</enum>
           </property>
           <property name="alignment">
            <set>Qt::AlignCenter</set>
@@ -721,6 +838,9 @@
           <property name="text">
            <string>Max</string>
           </property>
+          <property name="textFormat">
+           <enum>Qt::PlainText</enum>
+          </property>
           <property name="alignment">
            <set>Qt::AlignCenter</set>
           </property>
@@ -730,6 +850,9 @@
          <widget class="QLabel" name="labelInputNeutral">
           <property name="text">
            <string>Neutral</string>
+          </property>
+          <property name="textFormat">
+           <enum>Qt::PlainText</enum>
           </property>
           <property name="alignment">
            <set>Qt::AlignCenter</set>
@@ -741,6 +864,9 @@
           <property name="text">
            <string>Min</string>
           </property>
+          <property name="textFormat">
+           <enum>Qt::PlainText</enum>
+          </property>
           <property name="alignment">
            <set>Qt::AlignCenter</set>
           </property>
@@ -750,6 +876,9 @@
          <widget class="QLabel" name="labelInputChannel">
           <property name="text">
            <string>Channel #</string>
+          </property>
+          <property name="textFormat">
+           <enum>Qt::PlainText</enum>
           </property>
           <property name="alignment">
            <set>Qt::AlignCenter</set>
@@ -767,10 +896,16 @@
           <property name="text">
            <string>4095</string>
           </property>
+          <property name="textFormat">
+           <enum>Qt::PlainText</enum>
+          </property>
          </widget>
         </item>
         <item row="4" column="5">
          <widget class="QSpinBox" name="spinInputMaxYaw">
+          <property name="accelerated">
+           <bool>true</bool>
+          </property>
           <property name="maximum">
            <number>4095</number>
           </property>
@@ -778,6 +913,9 @@
         </item>
         <item row="4" column="4">
          <widget class="QSpinBox" name="spinInputMidYaw">
+          <property name="accelerated">
+           <bool>true</bool>
+          </property>
           <property name="maximum">
            <number>4095</number>
           </property>
@@ -785,6 +923,9 @@
         </item>
         <item row="4" column="3">
          <widget class="QSpinBox" name="spinInputMinYaw">
+          <property name="accelerated">
+           <bool>true</bool>
+          </property>
           <property name="maximum">
            <number>4095</number>
           </property>
@@ -797,6 +938,9 @@
             <horstretch>0</horstretch>
             <verstretch>0</verstretch>
            </sizepolicy>
+          </property>
+          <property name="currentIndex">
+           <number>5</number>
           </property>
           <item>
            <property name="text">
@@ -838,6 +982,9 @@
             <verstretch>0</verstretch>
            </sizepolicy>
           </property>
+          <property name="currentIndex">
+           <number>5</number>
+          </property>
           <item>
            <property name="text">
             <string>AUX1 analog</string>
@@ -872,6 +1019,9 @@
         </item>
         <item row="2" column="3">
          <widget class="QSpinBox" name="spinInputMinPitch">
+          <property name="accelerated">
+           <bool>true</bool>
+          </property>
           <property name="maximum">
            <number>4095</number>
           </property>
@@ -879,6 +1029,9 @@
         </item>
         <item row="2" column="4">
          <widget class="QSpinBox" name="spinInputMidPitch">
+          <property name="accelerated">
+           <bool>true</bool>
+          </property>
           <property name="maximum">
            <number>4095</number>
           </property>
@@ -886,6 +1039,9 @@
         </item>
         <item row="2" column="5">
          <widget class="QSpinBox" name="spinInputMaxPitch">
+          <property name="accelerated">
+           <bool>true</bool>
+          </property>
           <property name="maximum">
            <number>4095</number>
           </property>
@@ -902,6 +1058,9 @@
           <property name="text">
            <string>4095</string>
           </property>
+          <property name="textFormat">
+           <enum>Qt::PlainText</enum>
+          </property>
          </widget>
         </item>
         <item row="3" column="2">
@@ -911,6 +1070,9 @@
             <horstretch>0</horstretch>
             <verstretch>0</verstretch>
            </sizepolicy>
+          </property>
+          <property name="currentIndex">
+           <number>5</number>
           </property>
           <item>
            <property name="text">
@@ -946,6 +1108,9 @@
         </item>
         <item row="3" column="3">
          <widget class="QSpinBox" name="spinInputMinRoll">
+          <property name="accelerated">
+           <bool>true</bool>
+          </property>
           <property name="maximum">
            <number>4095</number>
           </property>
@@ -953,6 +1118,9 @@
         </item>
         <item row="3" column="4">
          <widget class="QSpinBox" name="spinInputMidRoll">
+          <property name="accelerated">
+           <bool>true</bool>
+          </property>
           <property name="maximum">
            <number>4095</number>
           </property>
@@ -960,6 +1128,9 @@
         </item>
         <item row="3" column="5">
          <widget class="QSpinBox" name="spinInputMaxRoll">
+          <property name="accelerated">
+           <bool>true</bool>
+          </property>
           <property name="maximum">
            <number>4095</number>
           </property>
@@ -976,6 +1147,9 @@
           <property name="text">
            <string>4095</string>
           </property>
+          <property name="textFormat">
+           <enum>Qt::PlainText</enum>
+          </property>
          </widget>
         </item>
        </layout>
@@ -990,6 +1164,9 @@
           <property name="text">
            <string>Offset</string>
           </property>
+          <property name="textFormat">
+           <enum>Qt::PlainText</enum>
+          </property>
           <property name="alignment">
            <set>Qt::AlignCenter</set>
           </property>
@@ -997,6 +1174,12 @@
         </item>
         <item row="5" column="5">
          <widget class="QSpinBox" name="spinInputOffsetYaw">
+          <property name="accelerated">
+           <bool>true</bool>
+          </property>
+          <property name="suffix">
+           <string>°</string>
+          </property>
           <property name="minimum">
            <number>-180</number>
           </property>
@@ -1007,6 +1190,12 @@
         </item>
         <item row="5" column="4">
          <widget class="QSpinBox" name="spinInputSpeedYaw">
+          <property name="accelerated">
+           <bool>true</bool>
+          </property>
+          <property name="suffix">
+           <string>°/s</string>
+          </property>
           <property name="maximum">
            <number>180</number>
           </property>
@@ -1014,6 +1203,12 @@
         </item>
         <item row="5" column="3">
          <widget class="QSpinBox" name="spinInputMaxAngleYaw">
+          <property name="accelerated">
+           <bool>true</bool>
+          </property>
+          <property name="suffix">
+           <string>°</string>
+          </property>
           <property name="minimum">
            <number>-180</number>
           </property>
@@ -1024,6 +1219,12 @@
         </item>
         <item row="5" column="2">
          <widget class="QSpinBox" name="spinInputMinAngleYaw">
+          <property name="accelerated">
+           <bool>true</bool>
+          </property>
+          <property name="suffix">
+           <string>°</string>
+          </property>
           <property name="minimum">
            <number>-180</number>
           </property>
@@ -1056,6 +1257,9 @@
           <property name="text">
            <string>Yaw:</string>
           </property>
+          <property name="textFormat">
+           <enum>Qt::PlainText</enum>
+          </property>
          </widget>
         </item>
         <item row="2" column="0">
@@ -1068,6 +1272,9 @@
           </property>
           <property name="text">
            <string>Pitch:</string>
+          </property>
+          <property name="textFormat">
+           <enum>Qt::PlainText</enum>
           </property>
          </widget>
         </item>
@@ -1082,12 +1289,18 @@
           <property name="text">
            <string>Roll:</string>
           </property>
+          <property name="textFormat">
+           <enum>Qt::PlainText</enum>
+          </property>
          </widget>
         </item>
         <item row="1" column="3">
          <widget class="QLabel" name="labelMaxAngle">
           <property name="text">
            <string>Max angle</string>
+          </property>
+          <property name="textFormat">
+           <enum>Qt::PlainText</enum>
           </property>
           <property name="alignment">
            <set>Qt::AlignCenter</set>
@@ -1099,6 +1312,9 @@
           <property name="text">
            <string>Min angle</string>
           </property>
+          <property name="textFormat">
+           <enum>Qt::PlainText</enum>
+          </property>
           <property name="alignment">
            <set>Qt::AlignCenter</set>
           </property>
@@ -1108,6 +1324,9 @@
          <widget class="QLabel" name="labelMode">
           <property name="text">
            <string>Mode</string>
+          </property>
+          <property name="textFormat">
+           <enum>Qt::PlainText</enum>
           </property>
           <property name="alignment">
            <set>Qt::AlignCenter</set>
@@ -1144,6 +1363,9 @@
           <property name="text">
            <string>Speed</string>
           </property>
+          <property name="textFormat">
+           <enum>Qt::PlainText</enum>
+          </property>
           <property name="alignment">
            <set>Qt::AlignCenter</set>
           </property>
@@ -1176,26 +1398,44 @@
         </item>
         <item row="4" column="2">
          <widget class="QSpinBox" name="spinInputMinAngleRoll">
+          <property name="accelerated">
+           <bool>true</bool>
+          </property>
+          <property name="suffix">
+           <string>°</string>
+          </property>
           <property name="minimum">
-           <number>-180</number>
+           <number>-90</number>
           </property>
           <property name="maximum">
-           <number>180</number>
+           <number>90</number>
           </property>
          </widget>
         </item>
         <item row="4" column="3">
          <widget class="QSpinBox" name="spinInputMaxAngleRoll">
+          <property name="accelerated">
+           <bool>true</bool>
+          </property>
+          <property name="suffix">
+           <string>°</string>
+          </property>
           <property name="minimum">
-           <number>-180</number>
+           <number>-90</number>
           </property>
           <property name="maximum">
-           <number>180</number>
+           <number>90</number>
           </property>
          </widget>
         </item>
         <item row="4" column="4">
          <widget class="QSpinBox" name="spinInputSpeedRoll">
+          <property name="accelerated">
+           <bool>true</bool>
+          </property>
+          <property name="suffix">
+           <string>°/s</string>
+          </property>
           <property name="maximum">
            <number>180</number>
           </property>
@@ -1228,6 +1468,12 @@
         </item>
         <item row="2" column="2">
          <widget class="QSpinBox" name="spinInputMinAnglePitch">
+          <property name="accelerated">
+           <bool>true</bool>
+          </property>
+          <property name="suffix">
+           <string>°</string>
+          </property>
           <property name="minimum">
            <number>-180</number>
           </property>
@@ -1238,6 +1484,12 @@
         </item>
         <item row="2" column="3">
          <widget class="QSpinBox" name="spinInputMaxAnglePitch">
+          <property name="accelerated">
+           <bool>true</bool>
+          </property>
+          <property name="suffix">
+           <string>°</string>
+          </property>
           <property name="minimum">
            <number>-180</number>
           </property>
@@ -1248,6 +1500,12 @@
         </item>
         <item row="4" column="5">
          <widget class="QSpinBox" name="spinInputOffsetRoll">
+          <property name="accelerated">
+           <bool>true</bool>
+          </property>
+          <property name="suffix">
+           <string>°</string>
+          </property>
           <property name="minimum">
            <number>-180</number>
           </property>
@@ -1258,6 +1516,12 @@
         </item>
         <item row="2" column="4">
          <widget class="QSpinBox" name="spinInputSpeedPitch">
+          <property name="accelerated">
+           <bool>true</bool>
+          </property>
+          <property name="suffix">
+           <string>°/s</string>
+          </property>
           <property name="maximum">
            <number>180</number>
           </property>
@@ -1265,6 +1529,12 @@
         </item>
         <item row="2" column="5">
          <widget class="QSpinBox" name="spinInputOffsetPitch">
+          <property name="accelerated">
+           <bool>true</bool>
+          </property>
+          <property name="suffix">
+           <string>°</string>
+          </property>
           <property name="minimum">
            <number>-180</number>
           </property>
@@ -1278,26 +1548,38 @@
           <property name="text">
            <string>Meas.</string>
           </property>
+          <property name="textFormat">
+           <enum>Qt::PlainText</enum>
+          </property>
          </widget>
         </item>
         <item row="2" column="6">
          <widget class="QLabel" name="labelOffsetPitch">
           <property name="text">
-           <string>0</string>
+           <string>0°</string>
+          </property>
+          <property name="textFormat">
+           <enum>Qt::PlainText</enum>
           </property>
          </widget>
         </item>
         <item row="4" column="6">
          <widget class="QLabel" name="labelOffsetRoll">
           <property name="text">
-           <string>0</string>
+           <string>0°</string>
+          </property>
+          <property name="textFormat">
+           <enum>Qt::PlainText</enum>
           </property>
          </widget>
         </item>
         <item row="5" column="6">
          <widget class="QLabel" name="labelOffsetYaw">
           <property name="text">
-           <string>0</string>
+           <string>0°</string>
+          </property>
+          <property name="textFormat">
+           <enum>Qt::PlainText</enum>
           </property>
          </widget>
         </item>
@@ -1393,12 +1675,18 @@
              <property name="text">
               <string>Axis TOP</string>
              </property>
+             <property name="textFormat">
+              <enum>Qt::PlainText</enum>
+             </property>
             </widget>
            </item>
            <item row="1" column="0">
             <widget class="QLabel" name="labelSensor1AxisRight">
              <property name="text">
               <string>Axis RIGHT</string>
+             </property>
+             <property name="textFormat">
+              <enum>Qt::PlainText</enum>
              </property>
             </widget>
            </item>
@@ -1499,12 +1787,18 @@
              <property name="text">
               <string>Axis RIGHT</string>
              </property>
+             <property name="textFormat">
+              <enum>Qt::PlainText</enum>
+             </property>
             </widget>
            </item>
            <item row="0" column="0">
             <widget class="QLabel" name="labelSensor2AxisTop">
              <property name="text">
               <string>Axis TOP</string>
+             </property>
+             <property name="textFormat">
+              <enum>Qt::PlainText</enum>
              </property>
             </widget>
            </item>

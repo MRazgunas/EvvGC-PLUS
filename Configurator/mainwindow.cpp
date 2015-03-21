@@ -661,9 +661,9 @@ void MainWindow::ProcessSerialMessages(const TelemetryMessage &msg)
     case 'h': /* Reads motor offset. */
         if ((msg.size - TELEMETRY_MSG_SIZE_BYTES) == (sizeof(float) * 3)) {
             memcpy((void *)motorOffset, (void *)msg.data, sizeof(float) * 3);
-            ui->labelOffsetPitch->setText(tr("%1").arg(round(motorOffset[0]*RAD2DEG)));
-            ui->labelOffsetRoll->setText(tr("%1").arg(round(motorOffset[1]*RAD2DEG)));
-            ui->labelOffsetYaw->setText(tr("%1").arg(round(motorOffset[2]*RAD2DEG)));
+            ui->labelOffsetPitch->setText(tr("%1°").arg(round(motorOffset[0]*RAD2DEG)));
+            ui->labelOffsetRoll->setText(tr("%1°").arg(round(motorOffset[1]*RAD2DEG)));
+            ui->labelOffsetYaw->setText(tr("%1°").arg(round(motorOffset[2]*RAD2DEG)));
         } else {
             qDebug() << "Motor offset size mismatch:" << (msg.size - TELEMETRY_MSG_SIZE_BYTES) \
                      << "|" << (sizeof(float) * 3);
