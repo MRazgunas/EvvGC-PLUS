@@ -154,6 +154,7 @@ void imuCalibrate(PIMUStruct pIMU) {
       pIMU->accelBias[0] += pIMU->accelData[0];
       pIMU->accelBias[1] += pIMU->accelData[1];
       pIMU->accelBias[2] += pIMU->accelData[2] + GRAV;
+      pIMU->calCounter++;
       return;
     } else {
       /* Update accelerometer bias. */
