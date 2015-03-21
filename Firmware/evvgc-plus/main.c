@@ -28,12 +28,11 @@
 /* Telemetry operation time out in milliseconds. */
 #define TELEMETRY_SLEEP_MS      20
 
-#define MPU6050_LOW_DETECTED    0x01
-#define MPU6050_HIGH_DETECTED   0x02
-#define EEPROM_24C02_DETECTED   0x04
+#define MPU6050_LOW_DETECTED    0x00000001
+#define MPU6050_HIGH_DETECTED   0x00000002
+#define EEPROM_24C02_DETECTED   0x00000004
 
 uint32_t g_boardStatus = 0;
-uint8_t g_fCalibrating = FALSE;
 I2CErrorStruct g_i2cErrorInfo = {0, 0};
 
 /* I2C2 configuration for I2C driver 2 */
@@ -58,7 +57,7 @@ static msg_t BlinkerThread(void *arg) {
   (void)arg;
   while (TRUE) {
     systime_t time;
-    if (g_fCalibrating) {
+    if (g_boardStatus & IMU_CALIBRATION_MASK) {
       time = 50;
     } else {
       time = serusbcfg.usbp->state == USB_ACTIVE ? 250 : 500;
@@ -106,22 +105,30 @@ static msg_t AttitudeThread(void *arg) {
   while (TRUE) {
     /* Process IMU1 new data ready event. */
     if (chBSemWait(&bsemIMU1DataReady) == RDY_OK) {
-      if (g_IMU1.flags & IMU_CALIBRATE_MASK) {
-        imuCalibrate(&g_IMU1);
+      if (g_boardStatus & IMU1_CALIBRATION_MASK) {
+        if (imuCalibrate(&g_IMU1, g_boardStatus & IMU1_CALIBRATE_ACCEL)) {
+          g_boardStatus &= ~IMU1_CALIBRATION_MASK;
+        }
       } else {
         attitudeUpdate(&g_IMU1);
       }
     }
     /* Process IMU2 new data ready event. */
     if ((g_boardStatus & MPU6050_HIGH_DETECTED) && (chBSemWait(&bsemIMU2DataReady) == RDY_OK)) {
-      if (g_IMU2.flags & IMU_CALIBRATE_MASK) {
-        imuCalibrate(&g_IMU2);
+      if (g_boardStatus & IMU2_CALIBRATION_MASK) {
+        if (imuCalibrate(&g_IMU2, g_boardStatus & IMU2_CALIBRATE_ACCEL)) {
+          g_boardStatus &= ~IMU2_CALIBRATION_MASK;
+        }
       } else {
         attitudeUpdate(&g_IMU2);
       }
     }
-    cameraRotationUpdate();
-    actuatorsUpdate();
+    if (g_boardStatus & IMU_CALIBRATION_MASK) {
+      pwmOutputDisableAll();
+    } else {
+      cameraRotationUpdate();
+      actuatorsUpdate();
+    }
   }
   /* This point should never be reached. */
   return 0;
@@ -166,8 +173,8 @@ int main(void) {
   rccEnableCRC(FALSE);
 
   /* Initialize IMU data structure. */
-  imuStructureInit(&g_IMU1, TRUE);
-  imuStructureInit(&g_IMU2, FALSE);
+  imuStructureInit(&g_IMU1, FALSE); // IMU1 on low address.
+  imuStructureInit(&g_IMU2, TRUE);  // IMU2 on high address.
 
   /* Loads settings from external EEPROM chip.
      WARNING! If MPU6050 sensor is not connected to the I2C bus, there
@@ -180,11 +187,13 @@ int main(void) {
   /* Initializes the MPU6050 sensor1. */
   if (mpu6050Init(g_IMU1.addr)) {
     g_boardStatus |= MPU6050_LOW_DETECTED;
+    g_boardStatus |= IMU1_CALIBRATE_GYRO;
   }
 
   /* Initializes the MPU6050 sensor2. */
   if (mpu6050Init(g_IMU2.addr)) {
     g_boardStatus |= MPU6050_HIGH_DETECTED;
+    g_boardStatus |= IMU2_CALIBRATE_GYRO;
   } else if (g_i2cErrorInfo.last_i2c_error == I2CD_ACK_FAILURE) {
     /* Device not found. */
     g_i2cErrorInfo.last_i2c_error = I2CD_NO_ERROR;

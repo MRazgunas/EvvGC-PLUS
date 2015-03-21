@@ -63,7 +63,7 @@ IMUStruct g_IMU2;
 
 /* I2C error info structure. */
 extern I2CErrorStruct g_i2cErrorInfo;
-extern uint8_t g_fCalibrating;
+extern uint32_t g_boardStatus;
 
 /**
  * Local variables
@@ -77,24 +77,22 @@ static uint8_t mpu6050TXData[MPU6050_TX_BUF_SIZE];
  * @param  pIMU - pointer to IMU data structure;
  * @param  fAddrLow - IMU address pin A0 is pulled low flag.
  */
-void imuStructureInit(PIMUStruct pIMU, uint8_t fAddrLow) {
+void imuStructureInit(PIMUStruct pIMU, uint8_t fAddrHigh) {
   uint8_t i;
   /* Initialize to zero. */
   memset((void *)pIMU, 0, sizeof(IMUStruct));
-  /* Initialize to normalized quaternion. */
+  /* Initialize to unity quaternion. */
   pIMU->qIMU[0] = 1.0f;
-  /* Calibrate gyroscope on start-up. */
-  pIMU->flags  |= IMU_CALIBRATE_GYRO;
 
-  if (fAddrLow) {
-    pIMU->addr = MPU6050_I2C_ADDR_A0_LOW;
-    for (i = 0; i < 3; i++) {
-      pIMU->axes_conf[i] = g_sensorSettings[i] & IMU1_CONF_MASK;
-    }
-  } else {
+  if (fAddrHigh) {
     pIMU->addr = MPU6050_I2C_ADDR_A0_HIGH;
     for (i = 0; i < 3; i++) {
       pIMU->axes_conf[i] = g_sensorSettings[i] >> 4;
+    }
+  } else {
+    pIMU->addr = MPU6050_I2C_ADDR_A0_LOW;
+    for (i = 0; i < 3; i++) {
+      pIMU->axes_conf[i] = g_sensorSettings[i] & IMU1_CONF_MASK;
     }
   }
 }
@@ -102,72 +100,64 @@ void imuStructureInit(PIMUStruct pIMU, uint8_t fAddrLow) {
 /**
  * @brief
  */
-void imuCalibrationStart(PIMUStruct pIMU, uint8_t flags) {
-  pIMU->flags |= flags;
+void imuCalibrationSet(uint8_t flags) {
+  g_boardStatus |= flags & IMU_CALIBRATION_MASK;
 }
 
 /**
  * @brief  Initialization function of IMU data structure.
  * @param  pIMU - pointer to IMU data structure;
+ * @param  fCalibrateAcc - accelerometer calibration flag.
+ * @return 0 - if calibration is not finished;
+ *         1 - if calibration is finished.
  */
-void imuCalibrate(PIMUStruct pIMU) {
-  g_fCalibrating = TRUE;
-
-  if (pIMU->flags & IMU_CALIBRATE_GYRO) {
-    if (pIMU->calCounter == 0) {
-      /* Reset gyroscope bias. */
-      pIMU->gyroBias[0] = pIMU->gyroData[0];
-      pIMU->gyroBias[1] = pIMU->gyroData[0];
-      pIMU->gyroBias[2] = pIMU->gyroData[0];
-      pIMU->calCounter++;
-      return;
-    } else if (pIMU->calCounter < CALIBRATION_COUNTER_MAX) {
-      /* Accumulate gyroscope bias. */
-      pIMU->gyroBias[0] += pIMU->gyroData[0];
-      pIMU->gyroBias[1] += pIMU->gyroData[1];
-      pIMU->gyroBias[2] += pIMU->gyroData[2];
-      pIMU->calCounter++;
-      return;
-    } else {
-      /* Update gyroscope bias. */
-      pIMU->gyroBias[0] /= (float)CALIBRATION_COUNTER_MAX;
-      pIMU->gyroBias[1] /= (float)CALIBRATION_COUNTER_MAX;
-      pIMU->gyroBias[2] /= (float)CALIBRATION_COUNTER_MAX;
-
-      pIMU->calCounter = 0;
-      pIMU->flags &= ~IMU_CALIBRATE_GYRO;
-
-      g_fCalibrating = FALSE;
-    }
-  }
-
-  if (pIMU->flags & IMU_CALIBRATE_ACCEL) {
-    if (pIMU->calCounter == 0) {
+uint8_t imuCalibrate(PIMUStruct pIMU, uint8_t fCalibrateAcc) {
+  if (fCalibrateAcc) {
+    if (pIMU->clbrCounter == 0) {
       /* Reset accelerometer bias. */
       pIMU->accelBias[0] = pIMU->accelData[0];
       pIMU->accelBias[1] = pIMU->accelData[0];
       pIMU->accelBias[2] = pIMU->accelData[0] + GRAV;
-      pIMU->calCounter++;
-      return;
-    } else if (pIMU->calCounter < CALIBRATION_COUNTER_MAX) {
+      pIMU->clbrCounter++;
+      return 0;
+    } else if (pIMU->clbrCounter < CALIBRATION_COUNTER_MAX) {
       /* Accumulate accelerometer bias. */
       pIMU->accelBias[0] += pIMU->accelData[0];
       pIMU->accelBias[1] += pIMU->accelData[1];
       pIMU->accelBias[2] += pIMU->accelData[2] + GRAV;
-      pIMU->calCounter++;
-      return;
+      pIMU->clbrCounter++;
+      return 0;
     } else {
       /* Update accelerometer bias. */
       pIMU->accelBias[0] /= (float)CALIBRATION_COUNTER_MAX;
       pIMU->accelBias[1] /= (float)CALIBRATION_COUNTER_MAX;
       pIMU->accelBias[2] /= (float)CALIBRATION_COUNTER_MAX;
-
-      pIMU->calCounter = 0;
-      pIMU->flags &= ~IMU_CALIBRATE_ACCEL;
-
-      g_fCalibrating = FALSE;
+      pIMU->clbrCounter = 0;
+    }
+  } else {
+    if (pIMU->clbrCounter == 0) {
+      /* Reset gyroscope bias. */
+      pIMU->gyroBias[0] = pIMU->gyroData[0];
+      pIMU->gyroBias[1] = pIMU->gyroData[0];
+      pIMU->gyroBias[2] = pIMU->gyroData[0];
+      pIMU->clbrCounter++;
+      return 0;
+    } else if (pIMU->clbrCounter < CALIBRATION_COUNTER_MAX) {
+      /* Accumulate gyroscope bias. */
+      pIMU->gyroBias[0] += pIMU->gyroData[0];
+      pIMU->gyroBias[1] += pIMU->gyroData[1];
+      pIMU->gyroBias[2] += pIMU->gyroData[2];
+      pIMU->clbrCounter++;
+      return 0;
+    } else {
+      /* Update gyroscope bias. */
+      pIMU->gyroBias[0] /= (float)CALIBRATION_COUNTER_MAX;
+      pIMU->gyroBias[1] /= (float)CALIBRATION_COUNTER_MAX;
+      pIMU->gyroBias[2] /= (float)CALIBRATION_COUNTER_MAX;
+      pIMU->clbrCounter = 0;
     }
   }
+  return 1;
 }
 
 /**

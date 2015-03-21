@@ -586,6 +586,16 @@ void pwmOutputUpdate(const uint8_t channel_id, float cmd) {
 }
 
 /**
+ * @brief  Disables all PWM output channels.
+ * @return none.
+ */
+void pwmOutputDisableAll(void) {
+  pwmOutputUpdatePitch();
+  pwmOutputUpdateRoll();
+  pwmOutputUpdateYaw();
+}
+
+/**
  *
  */
 void pwmOutputSettingsUpdate(const PPWMOutputStruct pNewSettings) {

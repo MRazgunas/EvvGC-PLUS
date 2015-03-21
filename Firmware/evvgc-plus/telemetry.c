@@ -251,19 +251,19 @@ static void telemetryProcessCommand(const PMessage pMsg) {
     pMsg->crc  = telemetryGetCRC32Checksum(pMsg);
     break;
   case '[': /* Calibrate gyroscope. */
-    imuCalibrationStart(&g_IMU1, IMU_CALIBRATE_GYRO);
+    imuCalibrationSet(IMU1_CALIBRATE_GYRO);
     telemetryPositiveResponse(pMsg);
     break;
   case ']': /* Calibrate accelerometer. */
-    imuCalibrationStart(&g_IMU1, IMU_CALIBRATE_ACCEL);
+    imuCalibrationSet(IMU1_CALIBRATE_ACCEL);
     telemetryPositiveResponse(pMsg);
     break;
   case '{': /* Calibrate gyroscope. */
-    imuCalibrationStart(&g_IMU2, IMU_CALIBRATE_GYRO);
+    imuCalibrationSet(IMU1_CALIBRATE_GYRO);
     telemetryPositiveResponse(pMsg);
     break;
   case '}': /* Calibrate accelerometer. */
-    imuCalibrationStart(&g_IMU2, IMU_CALIBRATE_ACCEL);
+    imuCalibrationSet(IMU2_CALIBRATE_ACCEL);
     telemetryPositiveResponse(pMsg);
     break;
   default: /* Unknown command. */

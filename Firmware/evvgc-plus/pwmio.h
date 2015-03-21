@@ -87,6 +87,7 @@ extern "C" {
 #endif
   void pwmOutputStart(void);
   void pwmOutputUpdate(const uint8_t channel_id, float cmd);
+  void pwmOutputDisableAll(void);
   void pwmOutputSettingsUpdate(const PPWMOutputStruct pNewSettings);
   void mixedInputStart(void);
   void mixedInputSettingsUpdate(const PMixedInputStruct pNewSettings);
