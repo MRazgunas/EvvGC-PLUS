@@ -42,7 +42,8 @@
  * IO pins assignments.
  */
 #define GPIOA_USB_DP            12
-#define GPIOB_LED_RED           12
+#define GPIOB_LED_BLUE          12
+#define GPIOA_LED_RED           3
 
 
 /*
@@ -75,7 +76,7 @@
  * PA0  - Alternate Push Pull output (TIM5 CH1).
  * PA1  - Alternate Push Pull output (TIM5 CH2).
  * PA2  - Alternate Push Pull output (TIM5 CH3).
- * PA3  - Alternate Push Pull output (TIM5 CH4; LED2).
+ * PA3  - Push Pull output  (LED2).
  * PA7  - Alternate Push Pull output (TIM8 CH1N).
  * PA8  - Alternate Push Pull output (TIM1 CH1).
  * PA9  - Alternate Push Pull output (TIM1 CH2).
@@ -83,7 +84,7 @@
  * PA11 - Normal input (USB DM).
  * PA12 - Normal input (USB DP).
  */
-#define VAL_GPIOACRL            0xA888AAAA      /*  PA7...PA0 */
+#define VAL_GPIOACRL            0xA8882AAA      /*  PA7...PA0 */
 #define VAL_GPIOACRH            0x88844AAA      /* PA15...PA8 */
 #define VAL_GPIOAODR            0xFFFFFFFF
 

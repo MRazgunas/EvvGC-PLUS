@@ -62,7 +62,7 @@ static msg_t BlinkerThread(void *arg) {
     } else {
       time = serusbcfg.usbp->state == USB_ACTIVE ? 250 : 500;
     }
-    palTogglePad(GPIOB, GPIOB_LED_RED);
+    palTogglePad(GPIOB, GPIOB_LED_BLUE);
     chThdSleepMilliseconds(time);
   }
   /* This point should never be reached. */

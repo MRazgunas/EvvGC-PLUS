@@ -283,6 +283,7 @@ void telemetryReadSerialData(void) {
   /* The following function must be called from within a system lock zone. */
   size_t bytesAvailable = chnBytesAvailable(g_chnp);
   chSysUnlock();
+  palTogglePad(GPIOA, GPIOA_LED_RED);
   if (bytesRequired) { /* Continue with previous command. */
     if (bytesAvailable >= bytesRequired) {
       if ((msg.size - TELEMETRY_MSG_SIZE) % sizeof(uint32_t)) {
