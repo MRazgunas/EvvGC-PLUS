@@ -14,7 +14,7 @@ class SerialThread : public QThread
     Q_OBJECT
 
 public:
-    SerialThread(QObject *parent = 0);
+    SerialThread(QObject *parent = 0, int connectAttempts = 1);
     ~SerialThread();
 
     void connect(const QString &portName);
@@ -25,6 +25,7 @@ protected:
     void run() Q_DECL_OVERRIDE;
 
 signals:
+    void serialConnected();
     void serialError(const QString &s);
     void serialTimeout(const QString &s);
     void serialDataReady(const TelemetryMessage &msg);
@@ -39,6 +40,7 @@ private:
     QByteArray m_txBuf;
     QByteArray m_rxBuf;
     bool m_quit;
+    int m_connectAttempts;
 };
 
 #endif // SERIALTHREAD_H

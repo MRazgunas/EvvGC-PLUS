@@ -124,6 +124,7 @@ MainWindow::MainWindow(QWidget *parent) :
     QMainWindow(parent),
     ui(new Ui::MainWindow),
     m_SerialDeviceList(new QComboBox),
+    m_thread(0, SERIAL_CONNECT_ATTEMPTS),
     fConnected(false),
     boardStatus(0)
 {
@@ -141,6 +142,7 @@ MainWindow::MainWindow(QWidget *parent) :
     connect(ui->pushSensor1AccCalibrate, SIGNAL(clicked()), this, SLOT(HandleAccCalibrate()));
     connect(ui->pushSensor1GyroCalibrate, SIGNAL(clicked()), this, SLOT(HandleGyroCalibrate()));
     connect(&m_timer, SIGNAL(timeout()), this, SLOT(ProcessTimeout()));
+    connect(&m_thread, SIGNAL(serialConnected()), this, SLOT(SerialConnected()));
     connect(&m_thread, SIGNAL(serialError(QString)), this, SLOT(SerialError(QString)));
     connect(&m_thread, SIGNAL(serialTimeout(QString)), this, SLOT(SerialTimeout(QString)));
     connect(&m_thread, SIGNAL(serialDataReady(TelemetryMessage)), this, SLOT(ProcessSerialMessages(TelemetryMessage)));
@@ -223,6 +225,7 @@ void MainWindow::SerialConnect()
         }
         m_thread.disconnect();
         ui->actionConnect->setText(tr("Connect"));
+        ui->actionConnect->setEnabled(true);
         ui->actionRead->setEnabled(false);
         ui->actionSet->setEnabled(false);
         ui->actionSave->setEnabled(false);
@@ -231,14 +234,25 @@ void MainWindow::SerialConnect()
         fConnected = false;
     } else {
         m_thread.connect(m_SerialDeviceList->currentData().toString());
-        ui->actionConnect->setText(tr("Disconnect"));
-        ui->actionRead->setEnabled(true);
-        ui->actionSet->setEnabled(true);
+        ui->actionConnect->setText(tr("Connecting..."));
+        ui->actionConnect->setEnabled(false);
+        ui->actionRead->setEnabled(false);
+        ui->actionSet->setEnabled(false);
         m_SerialDeviceList->setEnabled(false);
-        ui->statusBar->showMessage(tr("Connected to: %1").arg(m_SerialDeviceList->currentText()));
-        fConnected = true;
-        m_timer.start(100);
+        ui->statusBar->showMessage(tr("Connecting to: %1").arg(m_SerialDeviceList->currentText()));
     }
+}
+
+void MainWindow::SerialConnected()
+{
+    ui->actionConnect->setText(tr("Disconnect"));
+    ui->actionConnect->setEnabled(true);
+    ui->actionRead->setEnabled(true);
+    ui->actionSet->setEnabled(true);
+    m_SerialDeviceList->setEnabled(false);
+    ui->statusBar->showMessage(tr("Connected to: %1").arg(m_SerialDeviceList->currentText()));
+    fConnected = true;
+    m_timer.start(100);
 }
 
 void MainWindow::SerialDataWrite(const TelemetryMessage &msg)
@@ -246,6 +260,11 @@ void MainWindow::SerialDataWrite(const TelemetryMessage &msg)
     QByteArray data;
     data.append((char *)&msg, msg.size - TELEMETRY_CRC_SIZE_BYTES);
     data.append((char *)&msg.crc, TELEMETRY_CRC_SIZE_BYTES);
+#ifdef SERIAL_LOG
+    QFile log("serial.log");
+    log.open(QIODevice::Append);
+    log.write(data);
+#endif
     m_thread.write(data);
 }
 
@@ -256,6 +275,7 @@ void MainWindow::SerialError(const QString &s)
             m_timer.stop();
         }
         ui->actionConnect->setText(tr("Connect"));
+        ui->actionConnect->setEnabled(true);
         ui->actionRead->setEnabled(false);
         ui->actionSet->setEnabled(false);
         ui->actionSave->setEnabled(false);
@@ -272,6 +292,7 @@ void MainWindow::SerialTimeout(const QString &s)
             m_timer.stop();
         }
         ui->actionConnect->setText(tr("Connect"));
+        ui->actionConnect->setEnabled(true);
         ui->actionRead->setEnabled(false);
         ui->actionSet->setEnabled(false);
         ui->actionSave->setEnabled(false);
@@ -586,6 +607,7 @@ void MainWindow::ProcessSerialMessages(const TelemetryMessage &msg)
         qDebug() << "Acc data received.";
         if ((msg.size - TELEMETRY_MSG_SIZE_BYTES) == (sizeof(float) * 3)) {
             pfloatBuf = (float *)(msg.data);
+            qDebug() << pfloatBuf[0] << " " << pfloatBuf[1] << " " << pfloatBuf[2];
         } else {
             qDebug() << "Acc size mismatch:" << (msg.size - TELEMETRY_MSG_SIZE_BYTES) \
                      << "|" << (sizeof(float) * 3);
@@ -614,7 +636,8 @@ void MainWindow::ProcessSerialMessages(const TelemetryMessage &msg)
             } else {
                 ui->actionSave->setEnabled(false);
             }
-            qDebug() << "Board status:\r\n  MPU6050 detected:" << ((boardStatus & 1) == 1) \
+            qDebug() << "Board status (" << QString("%1").arg(boardStatus, 8, 16, QChar('0'))
+                     << "):\r\n  MPU6050 detected:" << ((boardStatus & 1) == 1) \
                      << "\r\n  EEPROM detected:" << ((boardStatus & 4) == 4);
         } else {
             qDebug() << "Board status size mismatch:" << (msg.size - TELEMETRY_MSG_SIZE_BYTES) \
@@ -653,6 +676,7 @@ void MainWindow::ProcessSerialMessages(const TelemetryMessage &msg)
         qDebug() << "Gyro data received.";
         if ((msg.size -TELEMETRY_MSG_SIZE_BYTES) == (sizeof(float) * 3)) {
             pfloatBuf = (float *)(msg.data);
+            qDebug() << pfloatBuf[0] << " " << pfloatBuf[1] << " " << pfloatBuf[2];
         } else {
             qDebug() << "Gyro size mismatch:" << (msg.size - TELEMETRY_MSG_SIZE_BYTES) \
                      << "|" << (sizeof(float) * 3);
@@ -791,6 +815,14 @@ void MainWindow::ProcessSerialMessages(const TelemetryMessage &msg)
                      << "|" << sizeof(PID);
         }
         break;
+    case 'l': /* debug log. */
+    {
+        char buf[sizeof(msg.data) + 1];
+        memcpy(buf, msg.data, msg.size);
+        buf[msg.size] = '\0';
+        qDebug() << "Debug log received:" << buf << "\r\n";
+        break;
+    }
     default:
         qDebug() << "Unhandled message received!";
     }

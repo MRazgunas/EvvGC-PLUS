@@ -13,6 +13,8 @@
 #include "telemetry.h"
 #include "crc32.h"
 
+#define SERIAL_CONNECT_ATTEMPTS  (20)
+
 /**
  * I2C bus error conditions
  */
@@ -90,6 +92,7 @@ public:
 
 private slots:
     void SerialConnect();
+    void SerialConnected();
     void SerialDataWrite(const TelemetryMessage &msg);
     void ProcessSerialMessages(const TelemetryMessage &msg);
     void SerialError(const QString &s);
