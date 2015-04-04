@@ -6,7 +6,7 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>480</width>
+    <width>556</width>
     <height>360</height>
    </rect>
   </property>
@@ -1964,8 +1964,8 @@
     <rect>
      <x>0</x>
      <y>0</y>
-     <width>480</width>
-     <height>21</height>
+     <width>556</width>
+     <height>19</height>
     </rect>
    </property>
    <widget class="QMenu" name="menuBoard">
@@ -2007,6 +2007,9 @@
    <property name="text">
     <string>Connect</string>
    </property>
+   <property name="shortcut">
+    <string>F1</string>
+   </property>
   </action>
   <action name="actionRead">
    <property name="enabled">
@@ -2014,6 +2017,9 @@
    </property>
    <property name="text">
     <string>Read</string>
+   </property>
+   <property name="shortcut">
+    <string>F2</string>
    </property>
   </action>
   <action name="actionSave">
@@ -2023,6 +2029,9 @@
    <property name="text">
     <string>Save</string>
    </property>
+   <property name="shortcut">
+    <string>F4</string>
+   </property>
   </action>
   <action name="actionSet">
    <property name="enabled">
@@ -2030,6 +2039,9 @@
    </property>
    <property name="text">
     <string>Set</string>
+   </property>
+   <property name="shortcut">
+    <string>F3</string>
    </property>
   </action>
  </widget>

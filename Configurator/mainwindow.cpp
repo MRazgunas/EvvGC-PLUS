@@ -91,7 +91,7 @@ static quint8 amMtx[6][6] = {
     {1, 3, 6, 4, 0, 6},//-Z;
 };
 
-static I2CErrorStruct i2cErrorInfo = {0, 0};
+static I2CErrorStruct i2cErrorInfo = {0, 0}, i2cErrorInfoPrev = {0, 0};
 
 /**
  * @brief Quaternion2RPY
@@ -126,7 +126,8 @@ MainWindow::MainWindow(QWidget *parent) :
     m_SerialDeviceList(new QComboBox),
     m_thread(0, SERIAL_CONNECT_ATTEMPTS),
     fConnected(false),
-    boardStatus(0)
+    boardStatus(0),
+    m_i2cStatus(new QCheckBox("I2C OK"))
 {
     ui->setupUi(this);
 
@@ -134,6 +135,10 @@ MainWindow::MainWindow(QWidget *parent) :
     m_SerialDeviceList->setEnabled(false);
     ui->mainToolBar->insertWidget(ui->actionConnect, m_SerialDeviceList);
     ui->mainToolBar->insertSeparator(ui->actionConnect);
+
+    m_i2cStatus->setEnabled(false);
+    m_i2cStatus->setCheckState(Qt::Checked);
+    ui->statusBar->addPermanentWidget(m_i2cStatus);
 
     connect(ui->actionConnect, SIGNAL(triggered()), this, SLOT(SerialConnect()));
     connect(ui->actionRead, SIGNAL(triggered()), this, SLOT(HandleReadSettings()));
@@ -144,7 +149,7 @@ MainWindow::MainWindow(QWidget *parent) :
     connect(&m_timer, SIGNAL(timeout()), this, SLOT(ProcessTimeout()));
     connect(&m_thread, SIGNAL(serialConnected()), this, SLOT(SerialConnected()));
     connect(&m_thread, SIGNAL(serialError(QString)), this, SLOT(SerialError(QString)));
-    connect(&m_thread, SIGNAL(serialTimeout(QString)), this, SLOT(SerialTimeout(QString)));
+    connect(&m_thread, SIGNAL(serialTimeout(QString)), this, SLOT(SerialError(QString)));
     connect(&m_thread, SIGNAL(serialDataReady(TelemetryMessage)), this, SLOT(ProcessSerialMessages(TelemetryMessage)));
 
     FillPortsInfo();
@@ -274,32 +279,15 @@ void MainWindow::SerialError(const QString &s)
         if (m_timer.isActive()) {
             m_timer.stop();
         }
-        ui->actionConnect->setText(tr("Connect"));
-        ui->actionConnect->setEnabled(true);
-        ui->actionRead->setEnabled(false);
-        ui->actionSet->setEnabled(false);
-        ui->actionSave->setEnabled(false);
-        m_SerialDeviceList->setEnabled(true);
-        fConnected = false;
-        ui->statusBar->showMessage(s);
     }
-}
-
-void MainWindow::SerialTimeout(const QString &s)
-{
-    if (fConnected) {
-        if (m_timer.isActive()) {
-            m_timer.stop();
-        }
-        ui->actionConnect->setText(tr("Connect"));
-        ui->actionConnect->setEnabled(true);
-        ui->actionRead->setEnabled(false);
-        ui->actionSet->setEnabled(false);
-        ui->actionSave->setEnabled(false);
-        m_SerialDeviceList->setEnabled(true);
-        fConnected = false;
-        ui->statusBar->showMessage(s);
-    }
+    ui->actionConnect->setText(tr("Connect"));
+    ui->actionConnect->setEnabled(true);
+    ui->actionRead->setEnabled(false);
+    ui->actionSet->setEnabled(false);
+    ui->actionSave->setEnabled(false);
+    m_SerialDeviceList->setEnabled(true);
+    fConnected = false;
+    ui->statusBar->showMessage(s);
 }
 
 /**
@@ -495,6 +483,8 @@ void MainWindow::HandleSaveSettings()
  */
 void MainWindow::ProcessTimeout()
 {
+    static int cnt = 0;
+
     m_msg.sof  = TELEMETRY_MSG_SOF;
     m_msg.size = TELEMETRY_MSG_SIZE_BYTES;
     m_msg.res  = 0;
@@ -513,6 +503,14 @@ void MainWindow::ProcessTimeout()
     m_msg.msg_id = 'h';
     m_msg.crc    = GetCRC32Checksum(m_msg);
     SerialDataWrite(m_msg);
+
+    if (cnt % 25 == 0) {
+        /* Occasionally get i2c status. */
+        m_msg.msg_id = 'e';
+        m_msg.crc    = GetCRC32Checksum(m_msg);
+        SerialDataWrite(m_msg);
+    }
+    cnt++;
 }
 
 
@@ -664,9 +662,21 @@ void MainWindow::ProcessSerialMessages(const TelemetryMessage &msg)
         break;
     case 'e': /* Reads I2C error info structure. */
         if ((msg.size - TELEMETRY_MSG_SIZE_BYTES) == sizeof(i2cErrorInfo)) {
-            memcpy((void *)&i2cErrorInfo, (void *)msg.data, sizeof(i2cErrorInfo));
-            qDebug() << "I2C Error Info:\r\n  I2C last error code:" << i2cErrorInfo.last_i2c_error \
-                     << "\r\n  I2C errors:" << i2cErrorInfo.i2c_error_counter;
+            if (i2cErrorInfoPrev.i2c_error_counter != i2cErrorInfo.i2c_error_counter) {
+                memcpy((void *)&i2cErrorInfo, (void *)msg.data, sizeof(i2cErrorInfo));
+                qDebug() << "I2C Error Info:\r\n  I2C last error code:" << i2cErrorInfo.last_i2c_error \
+                      << "\r\n  I2C errors:" << i2cErrorInfo.i2c_error_counter;
+                m_i2cStatus->setCheckState(Qt::Unchecked);
+                i2cErrorInfoPrev = i2cErrorInfo;
+                /* I2C error counter changed, try to get debug message... */
+                m_msg.sof  = TELEMETRY_MSG_SOF;
+                m_msg.size = TELEMETRY_MSG_SIZE_BYTES;
+                m_msg.res  = 0;
+
+                m_msg.msg_id = 'l';
+                m_msg.crc    = GetCRC32Checksum(m_msg);
+                SerialDataWrite(m_msg);
+            }
         } else {
             qDebug() << "I2C error info size mismatch:" << (msg.size - TELEMETRY_MSG_SIZE_BYTES) \
                      << "|" << sizeof(i2cErrorInfo);
@@ -817,10 +827,12 @@ void MainWindow::ProcessSerialMessages(const TelemetryMessage &msg)
         break;
     case 'l': /* debug log. */
     {
-        char buf[sizeof(msg.data) + 1];
-        memcpy(buf, msg.data, msg.size);
-        buf[msg.size] = '\0';
-        qDebug() << "Debug log received:" << buf << "\r\n";
+        if (msg.size > TELEMETRY_MSG_SIZE_BYTES) {
+            char buf[sizeof(msg.data) + 1];
+            memcpy(buf, msg.data, msg.size);
+            buf[msg.size] = '\0';
+            qDebug() << "Debug log received:" << buf << "\r\n";
+        }
         break;
     }
     default:

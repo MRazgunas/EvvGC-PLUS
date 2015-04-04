@@ -1,6 +1,7 @@
 #ifndef MAINWINDOW_H
 #define MAINWINDOW_H
 
+#include <QCheckBox>
 #include <QComboBox>
 #include <QLabel>
 #include <QMainWindow>
@@ -96,7 +97,6 @@ private slots:
     void SerialDataWrite(const TelemetryMessage &msg);
     void ProcessSerialMessages(const TelemetryMessage &msg);
     void SerialError(const QString &s);
-    void SerialTimeout(const QString &s);
     void HandleReadSettings();
     void HandleApplySettings();
     void HandleSaveSettings();
@@ -132,6 +132,7 @@ private:
     quint32 boardStatus;
     quint16 inputValues[5];
     float motorOffset[3];
+    QCheckBox *m_i2cStatus;
 };
 
 #endif // MAINWINDOW_H
