@@ -78,6 +78,7 @@ static Message msg = {
   0xFFFFFFFF
 };
 static uint8_t *msgPos = (uint8_t*)&msg;
+static Message debugMsg;
 
 static size_t bytesRequired = TELEMETRY_MSG_HDR_SIZE;
 
@@ -268,6 +269,13 @@ static void telemetryProcessCommand(const PMessage pMsg) {
     imuCalibrationSet(IMU2_CALIBRATE_ACCEL);
     telemetryPositiveResponse(pMsg);
     break;
+  case 'l': /* Outputs last debug message*/
+    memset((void *)pMsg->data, 0, TELEMETRY_BUFFER_SIZE);
+    memcpy((void *)pMsg->data, (void *)debugMsg.data, debugMsg.size);
+    pMsg->size = debugMsg.size;
+    pMsg->crc  = telemetryGetCRC32Checksum(&debugMsg);
+    debugMsg.size = 0;
+    break;
   case 'X': /* Hard reset the board */
     telemetryPositiveResponse(pMsg);
 
@@ -406,21 +414,10 @@ void telemetryReadSerialData(void) {
 
 void debugLog(const char *str)
 {
-  Message msg;
   uint8_t l = strlen(str) + 1;
-  if (l > sizeof(msg.data))
-    l = sizeof(msg.data);
+  if (l > sizeof(debugMsg.data))
+    l = sizeof(debugMsg.data);
 
-  msg.sof = TELEMETRY_MSG_SOF;
-  msg.msg_id = 'l';
-  msg.res = 0;
-
-  memset((void *)msg.data, 0, TELEMETRY_BUFFER_SIZE);
-  memcpy(msg.data, str, l);
-  msg.size = l + TELEMETRY_MSG_SVC_SIZE;
-
-  msg.crc = telemetryGetCRC32Checksum(&msg);
-  if (g_chnp != NULL) {
-    telemetrySendSerialData(&msg);
-  }
+  memcpy(debugMsg.data, str, l);
+  debugMsg.size = l + TELEMETRY_MSG_SVC_SIZE;
 }
