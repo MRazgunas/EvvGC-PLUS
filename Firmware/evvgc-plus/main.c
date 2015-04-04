@@ -76,6 +76,7 @@ static msg_t BlinkerThread(void *arg) {
 static WORKING_AREA(waPollMPU6050Thread, 128);
 static msg_t PollMPU6050Thread(void *arg) {
   systime_t time;
+
   (void)arg;
   time = chTimeNow();
   while (TRUE) {

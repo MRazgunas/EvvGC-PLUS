@@ -63,7 +63,7 @@ extern uint32_t g_boardStatus;
 /* I2C error info structure. */
 extern I2CErrorStruct g_i2cErrorInfo;
 /* Console input/output handle. */
-BaseChannel *g_chnp;
+BaseChannel *g_chnp = NULL;
 
 /**
  * Local variables
@@ -401,5 +401,26 @@ void telemetryReadSerialData(void) {
       bytesRequired = TELEMETRY_MSG_HDR_SIZE;
       msgPos = (uint8_t*)&msg;
     }
+  }
+}
+
+void debugLog(const char *str)
+{
+  Message msg;
+  uint8_t l = strlen(str) + 1;
+  if (l > sizeof(msg.data))
+    l = sizeof(msg.data);
+
+  msg.sof = TELEMETRY_MSG_SOF;
+  msg.msg_id = 'l';
+  msg.res = 0;
+
+  memset((void *)msg.data, 0, TELEMETRY_BUFFER_SIZE);
+  memcpy(msg.data, str, l);
+  msg.size = l + TELEMETRY_MSG_SVC_SIZE;
+
+  msg.crc = telemetryGetCRC32Checksum(&msg);
+  if (g_chnp != NULL) {
+    telemetrySendSerialData(&msg);
   }
 }

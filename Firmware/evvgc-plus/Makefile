@@ -218,7 +218,7 @@ include $(RULESPATH)/rules.mk
 
 program: $(BUILDDIR)/$(PROJECT).bin
 	# TODO: unreliable, we should wait for response+retry...
-	stty -F /dev/ttyACM0 38400
+	stty -F /dev/ttyACM0 57600
 	echo -n -e "\\xbd\\x58\\x08\\x00\\xe3\\x06\\x6d\\x9e" > /dev/ttyACM0;
 	sleep 1
 	dfu-util --alt 1  --download $(BUILDDIR)/$(PROJECT).bin -R
