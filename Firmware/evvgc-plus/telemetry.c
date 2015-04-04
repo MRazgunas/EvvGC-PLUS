@@ -26,6 +26,7 @@
 #include "mpu6050.h"
 #include "eeprom.h"
 #include "misc.h"
+#include "usbcfg.h"
 
 /* Predefined telemetry responses. */
 #define TELEMETRY_RESP_OK         "_OK_"
@@ -266,6 +267,25 @@ static void telemetryProcessCommand(const PMessage pMsg) {
   case '}': /* Calibrate accelerometer. */
     imuCalibrationSet(IMU2_CALIBRATE_ACCEL);
     telemetryPositiveResponse(pMsg);
+    break;
+  case 'X': /* Hard reset the board */
+    telemetryPositiveResponse(pMsg);
+
+    chThdSleepMilliseconds(100);
+
+    chSysLockFromIsr();
+    /* disconnect USB */
+    usbStop(serusbcfg.usbp);
+    usbDisconnectBus(serusbcfg.usbp);
+    chThdSleepMilliseconds(2000);
+    usbConnectBus(serusbcfg.usbp);
+    chSysDisable();
+
+    SCB_AIRCR = (u32)AIRCR_VECTKEY | 0x04;
+
+    while (1) {
+      asm volatile("nop");
+    }
     break;
   default: /* Unknown command. */
     telemetryNegativeResponse(pMsg);
