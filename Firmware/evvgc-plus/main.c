@@ -82,9 +82,15 @@ static msg_t PollMPU6050Thread(void *arg) {
   while (TRUE) {
     if (mpu6050GetNewData(&g_IMU1)) {
       chBSemSignal(&bsemIMU1DataReady);
+    } else {
+      i2cStop(&I2CD2);
+      i2cStart(&I2CD2, &i2cfg_d2);
     }
     if ((g_boardStatus & MPU6050_HIGH_DETECTED) && mpu6050GetNewData(&g_IMU2)) {
       chBSemSignal(&bsemIMU2DataReady);
+    } else {
+      i2cStop(&I2CD2);
+      i2cStart(&I2CD2, &i2cfg_d2);
     }
     /* Wait until the next 1.5 milliseconds passes. */
     chThdSleepUntil(time += US2ST(1500));
