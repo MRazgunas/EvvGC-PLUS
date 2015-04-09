@@ -189,7 +189,7 @@ int main(void) {
     g_boardStatus |= MPU6050_LOW_DETECTED;
     g_boardStatus |= IMU1_CALIBRATE_GYRO;
   }
-
+#if 0
   /* Initializes the MPU6050 sensor2. */
   if (mpu6050Init(g_IMU2.addr)) {
     g_boardStatus |= MPU6050_HIGH_DETECTED;
@@ -199,7 +199,7 @@ int main(void) {
     g_i2cErrorInfo.last_i2c_error = I2CD_NO_ERROR;
     g_i2cErrorInfo.i2c_error_counter--;
   }
-
+#endif
   if (g_boardStatus & MPU6050_LOW_DETECTED) {
     /* Creates a taken binary semaphore. */
     chBSemInit(&bsemIMU1DataReady, TRUE);

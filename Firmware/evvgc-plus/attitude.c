@@ -97,11 +97,12 @@ InputModeStruct g_modeSettings[3] = {
 /**
  * Local variables
  */
+static float camAtti[3] = {0.0f};
 static float camRot[3] = {0.0f};
 static float camRotSpeedPrev[3] = {0.0f};
 
-static float accelKp = 0.02f;
-static float accelKi = 0.0002;
+static float accel2Kp = 30.0f;
+static float accel2Ki = 0.001f;
 
 /* Accelerometer filter variables. */
 static uint8_t fAccelFilterEnabled = TRUE;
@@ -117,16 +118,18 @@ static PIDStruct PID[3] = {
 /**
  * @brief  Implements basic PID stabilization of the motor speed.
  * @param  cmd_id - command id to apply PID action to.
- * @param  sp - set-point value.
- * @param  pv - process variable value.
+ * @param  err - process error value.
+ * @param  rot - rotation command value.
  * @return weighted sum of P, I and D actions.
  */
-static float pidControllerApply(uint8_t cmd_id, float sp, float pv) {
+static float pidControllerApply(uint8_t cmd_id, float err, float rot) {
   float poles2 = (float)(g_pwmOutput[cmd_id].num_poles >> 1);
   /* Distance for the motor to travel: */
-  float dist = circadjust(sp - pv, M_PI);
+  float dist = circadjust(err, M_PI);
   /* Convert mechanical distance to electrical distance: */
   dist *= poles2;
+  /* Convert mechanical rotation to electrical rotation: */
+  rot *= poles2;
   /* If there is a distance to travel then rotate the motor in small steps: */
   float step = constrain(dist*PID[cmd_id].I, MOTOR_STEP_LIMIT_MIN, MOTOR_STEP_LIMIT_MAX);
   /* Calculate proportional speed of the motor: */
@@ -134,6 +137,8 @@ static float pidControllerApply(uint8_t cmd_id, float sp, float pv) {
   step += speed*PID[cmd_id].P;
   /* Account for the acceleration of the motor: */
   step += (speed - PID[cmd_id].prevSpeed)*PID[cmd_id].D;
+  /* Add rotation command. */
+  step += rot;
   /* Update offset of the motor: */
   g_motorOffset[cmd_id] += step / poles2;
   /* Wind-up guard limits motor offset range to one mechanical rotation: */
@@ -204,27 +209,23 @@ void attitudeUpdate(PIMUStruct pIMU) {
   pIMU->accelData[1] -= pIMU->accelBias[1];
   pIMU->accelData[2] -= pIMU->accelBias[2];
 
-  pIMU->gyroData[0] -= pIMU->gyroBias[0];
-  pIMU->gyroData[1] -= pIMU->gyroBias[1];
-  pIMU->gyroData[2] -= pIMU->gyroBias[2];
-
   // Account for accel's magnitude.
   mag = QInvSqrtf(pIMU->accelData[0]*pIMU->accelData[0] + pIMU->accelData[1]*pIMU->accelData[1] + pIMU->accelData[2]*pIMU->accelData[2]);
 
   if ((mag > 0.0724f) && (mag < 0.1724f)) {
-    float grot[3];
+    float v2[3];
 
-    // Rotate gravity to body frame and cross with accels.
-    grot[0] = -(2.0f*(pIMU->qIMU[1]*pIMU->qIMU[3] - pIMU->qIMU[0]*pIMU->qIMU[2]));
-    grot[1] = -(2.0f*(pIMU->qIMU[2]*pIMU->qIMU[3] + pIMU->qIMU[0]*pIMU->qIMU[1]));
-    grot[2] =  (2.0f*(pIMU->qIMU[1]*pIMU->qIMU[1] + pIMU->qIMU[2]*pIMU->qIMU[2])) - 1.0f;
+    // Compute estimated direction of gravity halved.
+    v2[0] =  (pIMU->qIMU[0]*pIMU->qIMU[2] - pIMU->qIMU[1]*pIMU->qIMU[3]);
+    v2[1] = -(pIMU->qIMU[2]*pIMU->qIMU[3] + pIMU->qIMU[0]*pIMU->qIMU[1]);
+    v2[2] =  (pIMU->qIMU[1]*pIMU->qIMU[1] + pIMU->qIMU[2]*pIMU->qIMU[2]) - 0.5f;
 
     // Apply smoothing to accel values, to reduce vibration noise before main calculations.
     accelFilterApply(pIMU->accelData, pIMU->accelFiltered);
-    // Apply the same filtering to the rotated attitude to match phase shift.
-    accelFilterApply(grot, pIMU->grotFiltered);
+    // Apply the same filtering to the estimated direction of gravity to match phase shift.
+    accelFilterApply(v2, pIMU->v2Filtered);
     // Compute the error between the predicted direction of gravity and smoothed acceleration.
-    CrossProduct(pIMU->accelFiltered, pIMU->grotFiltered, accelErr);
+    CrossProduct(pIMU->accelFiltered, pIMU->v2Filtered, accelErr);
 
     // Normalize accel_error.
     accelErr[0] *= mag;
@@ -233,14 +234,18 @@ void attitudeUpdate(PIMUStruct pIMU) {
   }
 
   // Correct rates based on error.
-  pIMU->gyroData[0] += accelErr[0]*(accelKp / FIXED_DT_STEP);
-  pIMU->gyroData[1] += accelErr[1]*(accelKp / FIXED_DT_STEP);
-  pIMU->gyroData[2] += accelErr[2]*(accelKp / FIXED_DT_STEP);
+  pIMU->gyroBias[0] -= accelErr[0]*accel2Ki;
+  pIMU->gyroBias[1] -= accelErr[1]*accel2Ki;
+  pIMU->gyroBias[2] -= accelErr[2]*accel2Ki;
+
+  pIMU->gyroData[0] -= pIMU->gyroBias[0];
+  pIMU->gyroData[1] -= pIMU->gyroBias[1];
+  pIMU->gyroData[2] -= pIMU->gyroBias[2];
 
   // Correct rates based on error.
-  pIMU->gyroBias[0] -= accelErr[0]*accelKi;
-  pIMU->gyroBias[1] -= accelErr[1]*accelKi;
-  pIMU->gyroBias[2] -= accelErr[2]*accelKi;
+  pIMU->gyroData[0] += accelErr[0]*accel2Kp;
+  pIMU->gyroData[1] += accelErr[1]*accel2Kp;
+  pIMU->gyroData[2] += accelErr[2]*accel2Kp;
 
   dq[0] = (-pIMU->qIMU[1]*pIMU->gyroData[0] - pIMU->qIMU[2]*pIMU->gyroData[1] - pIMU->qIMU[3]*pIMU->gyroData[2])*(FIXED_DT_STEP*DEG2RAD*0.5f);
   dq[1] = ( pIMU->qIMU[0]*pIMU->gyroData[0] - pIMU->qIMU[3]*pIMU->gyroData[1] + pIMU->qIMU[2]*pIMU->gyroData[2])*(FIXED_DT_STEP*DEG2RAD*0.5f);
@@ -318,8 +323,7 @@ void cameraRotationUpdate(void) {
       }
     }
     coef = constrain(coef, -speedLimit, speedLimit);
-    camRot[i] += coef*FIXED_DT_STEP;
-    camRot[i] = circadjust(camRot[i], M_PI);
+    camRot[i] = coef*FIXED_DT_STEP;
   }
 }
 
@@ -328,24 +332,34 @@ void cameraRotationUpdate(void) {
  */
 void actuatorsUpdate(void) {
   float cmd = 0.0f;
+  float err;
   /* Pitch: */
   uint8_t cmd_id = g_pwmOutput[PWM_OUT_PITCH].dt_cmd_id & PWM_OUT_CMD_ID_MASK;
   if (cmd_id != PWM_OUT_CMD_DISABLED) {
-    cmd = pidControllerApply(cmd_id, camRot[cmd_id], g_IMU1.rpy[cmd_id]);
+    err = camAtti[cmd_id] - g_IMU1.rpy[cmd_id];
+    camAtti[cmd_id] += camRot[cmd_id];
+    camAtti[cmd_id] = circadjust(camAtti[cmd_id], M_PI);
+    cmd = pidControllerApply(cmd_id, err, camRot[cmd_id]);
   }
   pwmOutputUpdate(PWM_OUT_PITCH, cmd);
   cmd = 0.0f;
   /* Roll: */
   cmd_id = g_pwmOutput[PWM_OUT_ROLL].dt_cmd_id & PWM_OUT_CMD_ID_MASK;
   if (cmd_id != PWM_OUT_CMD_DISABLED) {
-    cmd = pidControllerApply(cmd_id, camRot[cmd_id], g_IMU1.rpy[cmd_id]);
+    err = camAtti[cmd_id] - g_IMU1.rpy[cmd_id];
+    camAtti[cmd_id] += camRot[cmd_id];
+    camAtti[cmd_id] = circadjust(camAtti[cmd_id], M_PI);
+    cmd = pidControllerApply(cmd_id, err, camRot[cmd_id]);
   }
   pwmOutputUpdate(PWM_OUT_ROLL, cmd);
   cmd = 0.0f;
   /* Yaw: */
   cmd_id = g_pwmOutput[PWM_OUT_YAW].dt_cmd_id & PWM_OUT_CMD_ID_MASK;
   if (cmd_id != PWM_OUT_CMD_DISABLED) {
-    cmd = pidControllerApply(cmd_id, camRot[cmd_id], g_IMU1.rpy[cmd_id]);
+    err = camAtti[cmd_id] - g_IMU1.rpy[cmd_id];
+    camAtti[cmd_id] += camRot[cmd_id];
+    camAtti[cmd_id] = circadjust(camAtti[cmd_id], M_PI);
+    cmd = pidControllerApply(cmd_id, err, camRot[cmd_id]);
   }
   pwmOutputUpdate(PWM_OUT_YAW, cmd);
 }
