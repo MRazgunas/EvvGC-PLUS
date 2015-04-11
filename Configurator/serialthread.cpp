@@ -9,9 +9,10 @@
 
 QT_USE_NAMESPACE
 
-SerialThread::SerialThread(QObject *parent) :
+SerialThread::SerialThread(QObject *parent, int connectAttempts) :
     QThread(parent),
-    m_quit(false)
+    m_quit(false),
+    m_connectAttempts(connectAttempts)
 {
 
 }
@@ -50,6 +51,7 @@ void SerialThread::disconnect()
 void SerialThread::run()
 {
     QSerialPort serial;
+    int cr;
 
     serial.setPortName(m_portName);
     serial.setBaudRate(57600);
@@ -57,14 +59,23 @@ void SerialThread::run()
     serial.setParity(QSerialPort::NoParity);
     serial.setStopBits(QSerialPort::OneStop);
     serial.setFlowControl(QSerialPort::NoFlowControl);
-    if (!serial.open(QIODevice::ReadWrite)) {
+
+    for (cr = 0; cr < m_connectAttempts; cr++) {
+        if (serial.open(QIODevice::ReadWrite))
+            break;
+        sleep(1);
+        qDebug() << "Serial connect retry...";
+    }
+    if (cr == m_connectAttempts) {
         qDebug() << "Connection failed!";
         emit this->serialError(tr("Can't open %1, error code %2. %3.")
             .arg(m_portName).arg(serial.error()).arg(serial.errorString()));
         return;
     }
 
+    emit this->serialConnected();
     qDebug() << "Serial Thread is ready...";
+
     m_mutex.lock();
     /* Unlock resources and wait for the first job. */
     m_cond.wait(&m_mutex);

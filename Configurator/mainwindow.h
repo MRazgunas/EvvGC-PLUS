@@ -1,6 +1,7 @@
 #ifndef MAINWINDOW_H
 #define MAINWINDOW_H
 
+#include <QCheckBox>
 #include <QComboBox>
 #include <QLabel>
 #include <QMainWindow>
@@ -12,6 +13,8 @@
 #include "serialthread.h"
 #include "telemetry.h"
 #include "crc32.h"
+
+#define SERIAL_CONNECT_ATTEMPTS  (20)
 
 /**
  * I2C bus error conditions
@@ -90,12 +93,11 @@ public:
 
 private slots:
     void SerialConnect();
-    void SerialDataWrite(const TelemetryMessage &msg);
+    void SerialConnected();
     void ProcessSerialMessages(const TelemetryMessage &msg);
     void SerialError(const QString &s);
-    void SerialTimeout(const QString &s);
     void HandleReadSettings();
-    void HandleApplySettings();
+    void HandleApplySettings(bool warnDeadTimeChange = true);
     void HandleSaveSettings();
     void ProcessTimeout();
     void HandleDataXClicked();
@@ -117,6 +119,8 @@ private:
     bool GetSensorSettings();
     bool SetSensorSettings();
     quint32 GetCRC32Checksum(const TelemetryMessage &msg);
+    void SerialDataWrite(const TelemetryMessage &msg);
+    void SerialDataWrite(quint8 msgId, void *buf, int bufLen);
 
 private:
     Ui::MainWindow *ui;
@@ -129,6 +133,8 @@ private:
     quint32 boardStatus;
     quint16 inputValues[5];
     float motorOffset[3];
+    QCheckBox *m_i2cStatus;
+    bool m_deadtimeChanged;
 };
 
 #endif // MAINWINDOW_H

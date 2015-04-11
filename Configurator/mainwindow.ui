@@ -6,7 +6,7 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>480</width>
+    <width>556</width>
     <height>360</height>
    </rect>
   </property>
@@ -82,6 +82,9 @@
         </item>
         <item row="0" column="1">
          <widget class="QLabel" name="labelP">
+          <property name="toolTip">
+           <string>Proportional (depends on current error)</string>
+          </property>
           <property name="frameShape">
            <enum>QFrame::NoFrame</enum>
           </property>
@@ -98,6 +101,9 @@
         </item>
         <item row="0" column="2">
          <widget class="QLabel" name="labelI">
+          <property name="toolTip">
+           <string>Integral (accumulation of past errors)</string>
+          </property>
           <property name="text">
            <string>I</string>
           </property>
@@ -121,6 +127,9 @@
         </item>
         <item row="0" column="3">
          <widget class="QLabel" name="labelD">
+          <property name="toolTip">
+           <string>Derivative (prediction of future errors, based on current rate of change)</string>
+          </property>
           <property name="text">
            <string>D</string>
           </property>
@@ -268,6 +277,9 @@
             <verstretch>0</verstretch>
            </sizepolicy>
           </property>
+          <property name="toolTip">
+           <string>Set this as low as possible, but make sure that the power transistors are not overheating!</string>
+          </property>
           <property name="currentIndex">
            <number>5</number>
           </property>
@@ -386,6 +398,9 @@
             <verstretch>0</verstretch>
            </sizepolicy>
           </property>
+          <property name="toolTip">
+           <string>Set this as low as possible, but make sure that the power transistors are not overheating!</string>
+          </property>
           <property name="currentIndex">
            <number>5</number>
           </property>
@@ -428,6 +443,9 @@
             <horstretch>0</horstretch>
             <verstretch>0</verstretch>
            </sizepolicy>
+          </property>
+          <property name="toolTip">
+           <string>Reverse motor direction</string>
           </property>
           <property name="text">
            <string>Rev.</string>
@@ -503,6 +521,9 @@
             <verstretch>0</verstretch>
            </sizepolicy>
           </property>
+          <property name="toolTip">
+           <string>Reverse motor direction</string>
+          </property>
           <property name="text">
            <string>Rev.</string>
           </property>
@@ -531,6 +552,9 @@
             <horstretch>0</horstretch>
             <verstretch>0</verstretch>
            </sizepolicy>
+          </property>
+          <property name="toolTip">
+           <string>Reverse motor direction</string>
           </property>
           <property name="text">
            <string>Rev.</string>
@@ -665,6 +689,9 @@
             <verstretch>0</verstretch>
            </sizepolicy>
           </property>
+          <property name="toolTip">
+           <string>Set this as low as possible, but make sure that the power transistors are not overheating!</string>
+          </property>
           <property name="currentIndex">
            <number>5</number>
           </property>
@@ -721,6 +748,9 @@
             <verstretch>0</verstretch>
            </sizepolicy>
           </property>
+          <property name="toolTip">
+           <string>Third Harmonic Injection, incraeses efficiency by ~14%</string>
+          </property>
           <property name="text">
            <string>THI</string>
           </property>
@@ -734,6 +764,9 @@
             <verstretch>0</verstretch>
            </sizepolicy>
           </property>
+          <property name="toolTip">
+           <string>Third Harmonic Injection, incraeses efficiency by ~14%</string>
+          </property>
           <property name="text">
            <string>THI</string>
           </property>
@@ -746,6 +779,9 @@
             <horstretch>0</horstretch>
             <verstretch>0</verstretch>
            </sizepolicy>
+          </property>
+          <property name="toolTip">
+           <string>Third Harmonic Injection, incraeses efficiency by ~14%</string>
           </property>
           <property name="text">
            <string>THI</string>
@@ -1964,8 +2000,8 @@
     <rect>
      <x>0</x>
      <y>0</y>
-     <width>480</width>
-     <height>21</height>
+     <width>556</width>
+     <height>19</height>
     </rect>
    </property>
    <widget class="QMenu" name="menuBoard">
@@ -2007,6 +2043,9 @@
    <property name="text">
     <string>Connect</string>
    </property>
+   <property name="shortcut">
+    <string>F1</string>
+   </property>
   </action>
   <action name="actionRead">
    <property name="enabled">
@@ -2014,6 +2053,12 @@
    </property>
    <property name="text">
     <string>Read</string>
+   </property>
+   <property name="toolTip">
+    <string>Read settings currently used by the board</string>
+   </property>
+   <property name="shortcut">
+    <string>F2</string>
    </property>
   </action>
   <action name="actionSave">
@@ -2023,6 +2068,12 @@
    <property name="text">
     <string>Save</string>
    </property>
+   <property name="toolTip">
+    <string>Apply settings + save them to internal EEPROM</string>
+   </property>
+   <property name="shortcut">
+    <string>F4</string>
+   </property>
   </action>
   <action name="actionSet">
    <property name="enabled">
@@ -2030,6 +2081,12 @@
    </property>
    <property name="text">
     <string>Set</string>
+   </property>
+   <property name="toolTip">
+    <string>Apply settings</string>
+   </property>
+   <property name="shortcut">
+    <string>F3</string>
    </property>
   </action>
  </widget>

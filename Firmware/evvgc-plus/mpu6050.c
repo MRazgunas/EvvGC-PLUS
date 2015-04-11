@@ -29,6 +29,7 @@
 
 #include "mpu6050.h"
 #include "misc.h"
+#include "telemetry.h"
 
 #define MPU6050_RX_BUF_SIZE   0x0E
 #define MPU6050_TX_BUF_SIZE   0x05
@@ -183,6 +184,7 @@ uint8_t mpu6050Init(uint8_t addr) {
     g_i2cErrorInfo.last_i2c_error = i2cGetErrors(&I2CD2);
     if (g_i2cErrorInfo.last_i2c_error) {
       g_i2cErrorInfo.i2c_error_counter++;
+      debugLog("E:mpu6050i-tx1");
     }
     return 0;
   }
@@ -202,6 +204,7 @@ uint8_t mpu6050Init(uint8_t addr) {
     g_i2cErrorInfo.last_i2c_error = i2cGetErrors(&I2CD2);
     if (g_i2cErrorInfo.last_i2c_error) {
       g_i2cErrorInfo.i2c_error_counter++;
+      debugLog("E:mpu6050i-rst");
     }
     return 0;
   }
@@ -225,6 +228,7 @@ uint8_t mpu6050Init(uint8_t addr) {
     g_i2cErrorInfo.last_i2c_error = i2cGetErrors(&I2CD2);
     if (g_i2cErrorInfo.last_i2c_error) {
       g_i2cErrorInfo.i2c_error_counter++;
+      debugLog("E:mpu6050i-cfg");
     }
     return 0;
   }
@@ -253,6 +257,7 @@ uint8_t mpu6050GetNewData(PIMUStruct pIMU) {
     g_i2cErrorInfo.last_i2c_error = i2cGetErrors(&I2CD2);
     if (g_i2cErrorInfo.last_i2c_error) {
       g_i2cErrorInfo.i2c_error_counter++;
+      debugLog("E:mpu6050gnd");
     }
     return 0;
   }

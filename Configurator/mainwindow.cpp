@@ -91,7 +91,7 @@ static quint8 amMtx[6][6] = {
     {1, 3, 6, 4, 0, 6},//-Z;
 };
 
-static I2CErrorStruct i2cErrorInfo = {0, 0};
+static I2CErrorStruct i2cErrorInfo = {0, 0}, i2cErrorInfoPrev = {0, 0};
 
 /**
  * @brief Quaternion2RPY
@@ -124,8 +124,11 @@ MainWindow::MainWindow(QWidget *parent) :
     QMainWindow(parent),
     ui(new Ui::MainWindow),
     m_SerialDeviceList(new QComboBox),
+    m_thread(0, SERIAL_CONNECT_ATTEMPTS),
     fConnected(false),
-    boardStatus(0)
+    boardStatus(0),
+    m_i2cStatus(new QCheckBox("I2C OK")),
+    m_deadtimeChanged(false)
 {
     ui->setupUi(this);
 
@@ -134,6 +137,11 @@ MainWindow::MainWindow(QWidget *parent) :
     ui->mainToolBar->insertWidget(ui->actionConnect, m_SerialDeviceList);
     ui->mainToolBar->insertSeparator(ui->actionConnect);
 
+    m_i2cStatus->setToolTip("I2C bus works properly.");
+    m_i2cStatus->setEnabled(false);
+    m_i2cStatus->setCheckState(Qt::Checked);
+    ui->statusBar->addPermanentWidget(m_i2cStatus);
+
     connect(ui->actionConnect, SIGNAL(triggered()), this, SLOT(SerialConnect()));
     connect(ui->actionRead, SIGNAL(triggered()), this, SLOT(HandleReadSettings()));
     connect(ui->actionSet, SIGNAL(triggered()), this, SLOT(HandleApplySettings()));
@@ -141,8 +149,9 @@ MainWindow::MainWindow(QWidget *parent) :
     connect(ui->pushSensor1AccCalibrate, SIGNAL(clicked()), this, SLOT(HandleAccCalibrate()));
     connect(ui->pushSensor1GyroCalibrate, SIGNAL(clicked()), this, SLOT(HandleGyroCalibrate()));
     connect(&m_timer, SIGNAL(timeout()), this, SLOT(ProcessTimeout()));
+    connect(&m_thread, SIGNAL(serialConnected()), this, SLOT(SerialConnected()));
     connect(&m_thread, SIGNAL(serialError(QString)), this, SLOT(SerialError(QString)));
-    connect(&m_thread, SIGNAL(serialTimeout(QString)), this, SLOT(SerialTimeout(QString)));
+    connect(&m_thread, SIGNAL(serialTimeout(QString)), this, SLOT(SerialError(QString)));
     connect(&m_thread, SIGNAL(serialDataReady(TelemetryMessage)), this, SLOT(ProcessSerialMessages(TelemetryMessage)));
 
     FillPortsInfo();
@@ -223,6 +232,7 @@ void MainWindow::SerialConnect()
         }
         m_thread.disconnect();
         ui->actionConnect->setText(tr("Connect"));
+        ui->actionConnect->setEnabled(true);
         ui->actionRead->setEnabled(false);
         ui->actionSet->setEnabled(false);
         ui->actionSave->setEnabled(false);
@@ -231,14 +241,25 @@ void MainWindow::SerialConnect()
         fConnected = false;
     } else {
         m_thread.connect(m_SerialDeviceList->currentData().toString());
-        ui->actionConnect->setText(tr("Disconnect"));
-        ui->actionRead->setEnabled(true);
-        ui->actionSet->setEnabled(true);
+        ui->actionConnect->setText(tr("Connecting..."));
+        ui->actionConnect->setEnabled(false);
+        ui->actionRead->setEnabled(false);
+        ui->actionSet->setEnabled(false);
         m_SerialDeviceList->setEnabled(false);
-        ui->statusBar->showMessage(tr("Connected to: %1").arg(m_SerialDeviceList->currentText()));
-        fConnected = true;
-        m_timer.start(100);
+        ui->statusBar->showMessage(tr("Connecting to: %1").arg(m_SerialDeviceList->currentText()));
     }
+}
+
+void MainWindow::SerialConnected()
+{
+    ui->actionConnect->setText(tr("Disconnect"));
+    ui->actionConnect->setEnabled(true);
+    ui->actionRead->setEnabled(true);
+    ui->actionSet->setEnabled(true);
+    m_SerialDeviceList->setEnabled(false);
+    ui->statusBar->showMessage(tr("Connected to: %1").arg(m_SerialDeviceList->currentText()));
+    fConnected = true;
+    m_timer.start(100);
 }
 
 void MainWindow::SerialDataWrite(const TelemetryMessage &msg)
@@ -246,7 +267,30 @@ void MainWindow::SerialDataWrite(const TelemetryMessage &msg)
     QByteArray data;
     data.append((char *)&msg, msg.size - TELEMETRY_CRC_SIZE_BYTES);
     data.append((char *)&msg.crc, TELEMETRY_CRC_SIZE_BYTES);
+#ifdef SERIAL_LOG
+    QFile log("serial.log");
+    log.open(QIODevice::Append);
+    log.write(data);
+#endif
     m_thread.write(data);
+}
+
+void MainWindow::SerialDataWrite(quint8 msgId, void *buf, int bufLen)
+{
+    TelemetryMessage msg;
+
+    msg.sof = TELEMETRY_MSG_SOF;
+    msg.msg_id = msgId;
+    msg.res = 0;
+
+    /* Clean data buffer for zero-padded crc32 checksum calculation. */
+    memset((void *)msg.data, 0, TELEMETRY_BUFFER_SIZE);
+    if (bufLen > 0)
+        memcpy((void *)msg.data, buf, bufLen);
+    msg.size = bufLen + TELEMETRY_MSG_SIZE_BYTES;
+    msg.crc = GetCRC32Checksum(msg);
+
+    SerialDataWrite(msg);
 }
 
 void MainWindow::SerialError(const QString &s)
@@ -255,30 +299,15 @@ void MainWindow::SerialError(const QString &s)
         if (m_timer.isActive()) {
             m_timer.stop();
         }
-        ui->actionConnect->setText(tr("Connect"));
-        ui->actionRead->setEnabled(false);
-        ui->actionSet->setEnabled(false);
-        ui->actionSave->setEnabled(false);
-        m_SerialDeviceList->setEnabled(true);
-        fConnected = false;
-        ui->statusBar->showMessage(s);
     }
-}
-
-void MainWindow::SerialTimeout(const QString &s)
-{
-    if (fConnected) {
-        if (m_timer.isActive()) {
-            m_timer.stop();
-        }
-        ui->actionConnect->setText(tr("Connect"));
-        ui->actionRead->setEnabled(false);
-        ui->actionSet->setEnabled(false);
-        ui->actionSave->setEnabled(false);
-        m_SerialDeviceList->setEnabled(true);
-        fConnected = false;
-        ui->statusBar->showMessage(s);
-    }
+    ui->actionConnect->setText(tr("Connect"));
+    ui->actionConnect->setEnabled(true);
+    ui->actionRead->setEnabled(false);
+    ui->actionSet->setEnabled(false);
+    ui->actionSave->setEnabled(false);
+    m_SerialDeviceList->setEnabled(true);
+    fConnected = false;
+    ui->statusBar->showMessage(s);
 }
 
 /**
@@ -343,7 +372,7 @@ void MainWindow::HandleReadSettings()
 /**
  * @brief MainWindow::HandleApplySettings
  */
-void MainWindow::HandleApplySettings()
+void MainWindow::HandleApplySettings(bool warnDeadTimeChange)
 {
     m_msg.sof = TELEMETRY_MSG_SOF;
     m_msg.res = 0;
@@ -355,14 +384,7 @@ void MainWindow::HandleApplySettings()
         qDebug() << "Yaw   P:" << PID[2].P << "I:" << PID[2].I << "D:" << PID[2].D;
         qDebug() << "Size:" << sizeof(PID);
 
-        /* Clean data buffer for zero-padded crc32 checksum calculation. */
-        memset((void *)m_msg.data, 0, TELEMETRY_BUFFER_SIZE);
-        memcpy((void *)m_msg.data, (void *)PID, sizeof(PID));
-        m_msg.msg_id = 'S';
-        m_msg.size   = sizeof(PID) + TELEMETRY_MSG_SIZE_BYTES;
-        m_msg.crc    = GetCRC32Checksum(m_msg);
-
-        SerialDataWrite(m_msg);
+        SerialDataWrite('S', (void*)PID, sizeof(PID));
     }
 
     if (GetOutputSettings()) {
@@ -378,14 +400,7 @@ void MainWindow::HandleApplySettings()
                  << "Cmd:" << (outSettings[2].dt_cmd_id & PWM_OUT_CMD_ID_MASK) << "DT:" << (outSettings[2].dt_cmd_id >> 4);
         qDebug() << "Size:" << sizeof(outSettings);
 
-        /* Clean data buffer for zero-padded crc32 checksum calculation. */
-        memset((void *)m_msg.data, 0, TELEMETRY_BUFFER_SIZE);
-        memcpy((void *)m_msg.data, (void *)outSettings, sizeof(outSettings));
-        m_msg.msg_id = 'O';
-        m_msg.size   = sizeof(outSettings) + TELEMETRY_MSG_SIZE_BYTES;
-        m_msg.crc    = GetCRC32Checksum(m_msg);
-
-        SerialDataWrite(m_msg);
+        SerialDataWrite('O', (void*)outSettings, sizeof(outSettings));
     }
 
     if (GetInputSettings()) {
@@ -398,14 +413,7 @@ void MainWindow::HandleApplySettings()
                  << "Mid:" << inSettings[2].mid_val << "Max:" << inSettings[2].max_val;
         qDebug() << "Size:" << sizeof(inSettings);
 
-        /* Clean data buffer for zero-padded crc32 checksum calculation. */
-        memset((void *)m_msg.data, 0, TELEMETRY_BUFFER_SIZE);
-        memcpy((void *)m_msg.data, (void *)inSettings, sizeof(inSettings));
-        m_msg.msg_id = 'I';
-        m_msg.size   = sizeof(inSettings) + TELEMETRY_MSG_SIZE_BYTES;
-        m_msg.crc    = GetCRC32Checksum(m_msg);
-
-        SerialDataWrite(m_msg);
+        SerialDataWrite('I', (void*)inSettings, sizeof(inSettings));
     }
 
     if (GetInputModeSettings()) {
@@ -421,14 +429,7 @@ void MainWindow::HandleApplySettings()
                  << "Offset:" << modeSettings[2].offset;
         qDebug() << "Size:" << sizeof(modeSettings);
 
-        /* Clean data buffer for zero-padded crc32 checksum calculation. */
-        memset((void *)m_msg.data, 0, TELEMETRY_BUFFER_SIZE);
-        memcpy((void *)m_msg.data, (void *)modeSettings, sizeof(modeSettings));
-        m_msg.msg_id = 'M';
-        m_msg.size   = sizeof(modeSettings) + TELEMETRY_MSG_SIZE_BYTES;
-        m_msg.crc    = GetCRC32Checksum(m_msg);
-
-        SerialDataWrite(m_msg);
+        SerialDataWrite('M', (void *)modeSettings, sizeof(modeSettings));
     }
 
     if (GetSensorSettings()) {
@@ -441,14 +442,18 @@ void MainWindow::HandleApplySettings()
                  << "Positive:" << ((sensorSettings[2] & SENSOR1_AXIS_DIR_POS) > 0);
         qDebug() << "Size:" << sizeof(sensorSettings);
 
-        /* Clean data buffer for zero-padded crc32 checksum calculation. */
-        memset((void *)m_msg.data, 0, TELEMETRY_BUFFER_SIZE);
-        memcpy((void *)m_msg.data, (void *)sensorSettings, sizeof(sensorSettings));
-        m_msg.msg_id = 'D';
-        m_msg.size   = sizeof(sensorSettings) + TELEMETRY_MSG_SIZE_BYTES;
-        m_msg.crc    = GetCRC32Checksum(m_msg);
+        SerialDataWrite('D', (void *)sensorSettings, sizeof(sensorSettings));
+    }
 
-        SerialDataWrite(m_msg);
+    if (m_deadtimeChanged && warnDeadTimeChange) {
+        QMessageBox::warning(
+            NULL,
+            "Dead time settings unsaved!",
+            "You made changes to dead time settings. You must save the settings "
+            "and reboot the board in order to make the settings active. Note that "
+            "the dead time significantly changes the output behavior, so you may "
+            "need to re-adjust other settings afterwards."
+        );
     }
 }
 
@@ -457,16 +462,29 @@ void MainWindow::HandleApplySettings()
  */
 void MainWindow::HandleSaveSettings()
 {
-    HandleApplySettings();
-
-    m_msg.sof  = TELEMETRY_MSG_SOF;
-    m_msg.size = TELEMETRY_MSG_SIZE_BYTES;
-    m_msg.res  = 0;
+    HandleApplySettings(false);
 
     /* Save to EEPROM. */
-    m_msg.msg_id = 'c';
-    m_msg.crc    = GetCRC32Checksum(m_msg);
-    SerialDataWrite(m_msg);
+    SerialDataWrite('c', NULL, 0);
+
+    if (m_deadtimeChanged) {
+        QMessageBox::StandardButton reply;
+        reply = QMessageBox::question(
+            NULL,
+            "Dead time settings unsaved!",
+            "You made changes to dead time settings. Those changes will not "
+            "get applied until the board reboots. Issue reboot now?",
+            QMessageBox::Yes | QMessageBox::No, QMessageBox::Yes
+        );
+        if (reply == QMessageBox::Yes) {
+            SerialDataWrite('X', NULL, 0);
+
+            SerialConnect(); // Disconnect actually...
+        }
+
+        // Don't bug the user until next change
+        m_deadtimeChanged = false;
+    }
 }
 
 /**
@@ -474,6 +492,8 @@ void MainWindow::HandleSaveSettings()
  */
 void MainWindow::ProcessTimeout()
 {
+    static int cnt = 0;
+
     m_msg.sof  = TELEMETRY_MSG_SOF;
     m_msg.size = TELEMETRY_MSG_SIZE_BYTES;
     m_msg.res  = 0;
@@ -492,6 +512,14 @@ void MainWindow::ProcessTimeout()
     m_msg.msg_id = 'h';
     m_msg.crc    = GetCRC32Checksum(m_msg);
     SerialDataWrite(m_msg);
+
+    if (cnt % 25 == 0) {
+        /* Occasionally get i2c status. */
+        m_msg.msg_id = 'e';
+        m_msg.crc    = GetCRC32Checksum(m_msg);
+        SerialDataWrite(m_msg);
+    }
+    cnt++;
 }
 
 
@@ -521,26 +549,12 @@ void MainWindow::HandleDataZClicked()
 
 void MainWindow::HandleAccCalibrate()
 {
-    m_msg.sof  = TELEMETRY_MSG_SOF;
-    m_msg.size = TELEMETRY_MSG_SIZE_BYTES;
-    m_msg.res  = 0;
-
-    /* Start accel calibration. */
-    m_msg.msg_id = ']';
-    m_msg.crc    = GetCRC32Checksum(m_msg);
-    SerialDataWrite(m_msg);
+    SerialDataWrite(']', NULL, 0);
 }
 
 void MainWindow::HandleGyroCalibrate()
 {
-    m_msg.sof  = TELEMETRY_MSG_SOF;
-    m_msg.size = TELEMETRY_MSG_SIZE_BYTES;
-    m_msg.res  = 0;
-
-    /* Start gyro calibration. */
-    m_msg.msg_id = '[';
-    m_msg.crc    = GetCRC32Checksum(m_msg);
-    SerialDataWrite(m_msg);
+    SerialDataWrite('[', NULL, 0);
 }
 
 /**
@@ -586,6 +600,7 @@ void MainWindow::ProcessSerialMessages(const TelemetryMessage &msg)
         qDebug() << "Acc data received.";
         if ((msg.size - TELEMETRY_MSG_SIZE_BYTES) == (sizeof(float) * 3)) {
             pfloatBuf = (float *)(msg.data);
+            qDebug() << pfloatBuf[0] << " " << pfloatBuf[1] << " " << pfloatBuf[2];
         } else {
             qDebug() << "Acc size mismatch:" << (msg.size - TELEMETRY_MSG_SIZE_BYTES) \
                      << "|" << (sizeof(float) * 3);
@@ -614,7 +629,8 @@ void MainWindow::ProcessSerialMessages(const TelemetryMessage &msg)
             } else {
                 ui->actionSave->setEnabled(false);
             }
-            qDebug() << "Board status:\r\n  MPU6050 detected:" << ((boardStatus & 1) == 1) \
+            qDebug() << "Board status (" << QString("%1").arg(boardStatus, 8, 16, QChar('0'))
+                     << "):\r\n  MPU6050 detected:" << ((boardStatus & 1) == 1) \
                      << "\r\n  EEPROM detected:" << ((boardStatus & 4) == 4);
         } else {
             qDebug() << "Board status size mismatch:" << (msg.size - TELEMETRY_MSG_SIZE_BYTES) \
@@ -641,9 +657,22 @@ void MainWindow::ProcessSerialMessages(const TelemetryMessage &msg)
         break;
     case 'e': /* Reads I2C error info structure. */
         if ((msg.size - TELEMETRY_MSG_SIZE_BYTES) == sizeof(i2cErrorInfo)) {
-            memcpy((void *)&i2cErrorInfo, (void *)msg.data, sizeof(i2cErrorInfo));
-            qDebug() << "I2C Error Info:\r\n  I2C last error code:" << i2cErrorInfo.last_i2c_error \
-                     << "\r\n  I2C errors:" << i2cErrorInfo.i2c_error_counter;
+            if (i2cErrorInfoPrev.i2c_error_counter != i2cErrorInfo.i2c_error_counter) {
+                memcpy((void *)&i2cErrorInfo, (void *)msg.data, sizeof(i2cErrorInfo));
+                qDebug() << "I2C Error Info:\r\n  I2C last error code:" << i2cErrorInfo.last_i2c_error \
+                      << "\r\n  I2C errors:" << i2cErrorInfo.i2c_error_counter;
+                m_i2cStatus->setCheckState(Qt::Unchecked);
+                m_i2cStatus->setToolTip("An I2C error occured! The board wiring causes noise on I2C, which may result in unpredictable behavior.");
+                i2cErrorInfoPrev = i2cErrorInfo;
+                /* I2C error counter changed, try to get debug message... */
+                m_msg.sof  = TELEMETRY_MSG_SOF;
+                m_msg.size = TELEMETRY_MSG_SIZE_BYTES;
+                m_msg.res  = 0;
+
+                m_msg.msg_id = 'l';
+                m_msg.crc    = GetCRC32Checksum(m_msg);
+                SerialDataWrite(m_msg);
+            }
         } else {
             qDebug() << "I2C error info size mismatch:" << (msg.size - TELEMETRY_MSG_SIZE_BYTES) \
                      << "|" << sizeof(i2cErrorInfo);
@@ -653,6 +682,7 @@ void MainWindow::ProcessSerialMessages(const TelemetryMessage &msg)
         qDebug() << "Gyro data received.";
         if ((msg.size -TELEMETRY_MSG_SIZE_BYTES) == (sizeof(float) * 3)) {
             pfloatBuf = (float *)(msg.data);
+            qDebug() << pfloatBuf[0] << " " << pfloatBuf[1] << " " << pfloatBuf[2];
         } else {
             qDebug() << "Gyro size mismatch:" << (msg.size - TELEMETRY_MSG_SIZE_BYTES) \
                      << "|" << (sizeof(float) * 3);
@@ -791,6 +821,17 @@ void MainWindow::ProcessSerialMessages(const TelemetryMessage &msg)
                      << "|" << sizeof(PID);
         }
         break;
+    case 'l': /* debug log. */
+    {
+        if (msg.size > TELEMETRY_MSG_SIZE_BYTES) {
+            char buf[sizeof(msg.data) + 1];
+            memcpy(buf, msg.data, msg.size);
+            buf[msg.size] = '\0';
+            qDebug() << "Debug log received:" << buf << "\r\n";
+            ui->statusBar->showMessage(tr("Debug message received from board: '%1'").arg(buf));
+        }
+        break;
+    }
     default:
         qDebug() << "Unhandled message received!";
     }
@@ -920,6 +961,7 @@ bool MainWindow::GetOutputSettings()
     temp = ui->comboPitchDeadTime->currentIndex() << 4;
     if (temp != (outSettings[0].dt_cmd_id & PWM_OUT_DT_ID_MASK)) {
         fUpdated = true;
+        m_deadtimeChanged = true;
     }
     outSettings[0].dt_cmd_id = temp | temp2;
     temp2 = 0;
@@ -954,6 +996,7 @@ bool MainWindow::GetOutputSettings()
     temp = ui->comboRollDeadTime->currentIndex() << 4;
     if (temp != (outSettings[1].dt_cmd_id & PWM_OUT_DT_ID_MASK)) {
         fUpdated = true;
+        m_deadtimeChanged = true;
     }
     outSettings[1].dt_cmd_id = temp | temp2;
     temp2 = 0;
@@ -988,6 +1031,7 @@ bool MainWindow::GetOutputSettings()
     temp = ui->comboYawDeadTime->currentIndex() << 4;
     if (temp != (outSettings[2].dt_cmd_id & PWM_OUT_DT_ID_MASK)) {
         fUpdated = true;
+        m_deadtimeChanged = true;
     }
     outSettings[2].dt_cmd_id = temp | temp2;
     return fUpdated;

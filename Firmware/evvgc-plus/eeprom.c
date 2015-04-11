@@ -31,6 +31,7 @@
 #include "pwmio.h"
 #include "mpu6050.h"
 #include "misc.h"
+#include "telemetry.h"
 
 /* I2C read transaction time-out in milliseconds. */
 #define EEPROM_READ_TIMEOUT_MS  0x05
@@ -101,6 +102,7 @@ static uint8_t eepromWriteData(uint8_t addr, uint8_t *pData, size_t size) {
       g_i2cErrorInfo.last_i2c_error = i2cGetErrors(&I2CD2);
       if (g_i2cErrorInfo.last_i2c_error) {
         g_i2cErrorInfo.i2c_error_counter++;
+        debugLog("E:eeprom-wr1");
       }
       return 0;
     }
@@ -119,6 +121,7 @@ static uint8_t eepromWriteData(uint8_t addr, uint8_t *pData, size_t size) {
         g_i2cErrorInfo.last_i2c_error = i2cGetErrors(&I2CD2);
         if (g_i2cErrorInfo.last_i2c_error) {
           g_i2cErrorInfo.i2c_error_counter++;
+          debugLog("E:eeprom-wr2");
         }
         return 0;
       }
@@ -136,6 +139,7 @@ static uint8_t eepromWriteData(uint8_t addr, uint8_t *pData, size_t size) {
         g_i2cErrorInfo.last_i2c_error = i2cGetErrors(&I2CD2);
         if (g_i2cErrorInfo.last_i2c_error) {
           g_i2cErrorInfo.i2c_error_counter++;
+          debugLog("E:eeprom-wr3");
         }
         return 0;
       }
@@ -162,6 +166,7 @@ uint8_t eepromLoadSettings(void) {
   if (status != RDY_OK) {
     g_i2cErrorInfo.last_i2c_error = i2cGetErrors(&I2CD2);
     if (g_i2cErrorInfo.last_i2c_error) {
+      debugLog("E:eeprom-load");
       g_i2cErrorInfo.i2c_error_counter++;
     }
     return 0;

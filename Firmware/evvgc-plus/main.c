@@ -62,7 +62,7 @@ static msg_t BlinkerThread(void *arg) {
     } else {
       time = serusbcfg.usbp->state == USB_ACTIVE ? 250 : 500;
     }
-    palTogglePad(GPIOB, GPIOB_LED_RED);
+    palTogglePad(GPIOB, GPIOB_LED_BLUE);
     chThdSleepMilliseconds(time);
   }
   /* This point should never be reached. */
@@ -76,14 +76,21 @@ static msg_t BlinkerThread(void *arg) {
 static WORKING_AREA(waPollMPU6050Thread, 128);
 static msg_t PollMPU6050Thread(void *arg) {
   systime_t time;
+
   (void)arg;
   time = chTimeNow();
   while (TRUE) {
     if (mpu6050GetNewData(&g_IMU1)) {
       chBSemSignal(&bsemIMU1DataReady);
+    } else {
+      i2cStop(&I2CD2);
+      i2cStart(&I2CD2, &i2cfg_d2);
     }
     if ((g_boardStatus & MPU6050_HIGH_DETECTED) && mpu6050GetNewData(&g_IMU2)) {
       chBSemSignal(&bsemIMU2DataReady);
+    } else {
+      i2cStop(&I2CD2);
+      i2cStart(&I2CD2, &i2cfg_d2);
     }
     /* Wait until the next 1.5 milliseconds passes. */
     chThdSleepUntil(time += US2ST(1500));
