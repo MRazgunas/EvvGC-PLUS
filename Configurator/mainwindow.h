@@ -94,7 +94,6 @@ public:
 private slots:
     void SerialConnect();
     void SerialConnected();
-    void SerialDataWrite(const TelemetryMessage &msg);
     void ProcessSerialMessages(const TelemetryMessage &msg);
     void SerialError(const QString &s);
     void HandleReadSettings();
@@ -120,6 +119,8 @@ private:
     bool GetSensorSettings();
     bool SetSensorSettings();
     quint32 GetCRC32Checksum(const TelemetryMessage &msg);
+    void SerialDataWrite(const TelemetryMessage &msg);
+    void SerialDataWrite(quint8 msgId, void *buf, int bufLen);
 
 private:
     Ui::MainWindow *ui;
@@ -133,7 +134,7 @@ private:
     quint16 inputValues[5];
     float motorOffset[3];
     QCheckBox *m_i2cStatus;
-	bool m_deadtimeChanged;
+    bool m_deadtimeChanged;
 };
 
 #endif // MAINWINDOW_H

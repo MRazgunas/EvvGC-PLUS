@@ -275,6 +275,24 @@ void MainWindow::SerialDataWrite(const TelemetryMessage &msg)
     m_thread.write(data);
 }
 
+void MainWindow::SerialDataWrite(quint8 msgId, void *buf, int bufLen)
+{
+    TelemetryMessage msg;
+
+    msg.sof = TELEMETRY_MSG_SOF;
+    msg.msg_id = msgId;
+    msg.res = 0;
+
+    /* Clean data buffer for zero-padded crc32 checksum calculation. */
+    memset((void *)msg.data, 0, TELEMETRY_BUFFER_SIZE);
+    if (bufLen > 0)
+        memcpy((void *)msg.data, buf, bufLen);
+    msg.size = bufLen + TELEMETRY_MSG_SIZE_BYTES;
+    msg.crc = GetCRC32Checksum(msg);
+
+    SerialDataWrite(msg);
+}
+
 void MainWindow::SerialError(const QString &s)
 {
     if (fConnected) {
@@ -366,14 +384,7 @@ void MainWindow::HandleApplySettings(bool warnDeadTimeChange)
         qDebug() << "Yaw   P:" << PID[2].P << "I:" << PID[2].I << "D:" << PID[2].D;
         qDebug() << "Size:" << sizeof(PID);
 
-        /* Clean data buffer for zero-padded crc32 checksum calculation. */
-        memset((void *)m_msg.data, 0, TELEMETRY_BUFFER_SIZE);
-        memcpy((void *)m_msg.data, (void *)PID, sizeof(PID));
-        m_msg.msg_id = 'S';
-        m_msg.size   = sizeof(PID) + TELEMETRY_MSG_SIZE_BYTES;
-        m_msg.crc    = GetCRC32Checksum(m_msg);
-
-        SerialDataWrite(m_msg);
+        SerialDataWrite('S', (void*)PID, sizeof(PID));
     }
 
     if (GetOutputSettings()) {
@@ -389,14 +400,7 @@ void MainWindow::HandleApplySettings(bool warnDeadTimeChange)
                  << "Cmd:" << (outSettings[2].dt_cmd_id & PWM_OUT_CMD_ID_MASK) << "DT:" << (outSettings[2].dt_cmd_id >> 4);
         qDebug() << "Size:" << sizeof(outSettings);
 
-        /* Clean data buffer for zero-padded crc32 checksum calculation. */
-        memset((void *)m_msg.data, 0, TELEMETRY_BUFFER_SIZE);
-        memcpy((void *)m_msg.data, (void *)outSettings, sizeof(outSettings));
-        m_msg.msg_id = 'O';
-        m_msg.size   = sizeof(outSettings) + TELEMETRY_MSG_SIZE_BYTES;
-        m_msg.crc    = GetCRC32Checksum(m_msg);
-
-        SerialDataWrite(m_msg);
+        SerialDataWrite('O', (void*)outSettings, sizeof(outSettings));
     }
 
     if (GetInputSettings()) {
@@ -409,14 +413,7 @@ void MainWindow::HandleApplySettings(bool warnDeadTimeChange)
                  << "Mid:" << inSettings[2].mid_val << "Max:" << inSettings[2].max_val;
         qDebug() << "Size:" << sizeof(inSettings);
 
-        /* Clean data buffer for zero-padded crc32 checksum calculation. */
-        memset((void *)m_msg.data, 0, TELEMETRY_BUFFER_SIZE);
-        memcpy((void *)m_msg.data, (void *)inSettings, sizeof(inSettings));
-        m_msg.msg_id = 'I';
-        m_msg.size   = sizeof(inSettings) + TELEMETRY_MSG_SIZE_BYTES;
-        m_msg.crc    = GetCRC32Checksum(m_msg);
-
-        SerialDataWrite(m_msg);
+        SerialDataWrite('I', (void*)inSettings, sizeof(inSettings));
     }
 
     if (GetInputModeSettings()) {
@@ -432,14 +429,7 @@ void MainWindow::HandleApplySettings(bool warnDeadTimeChange)
                  << "Offset:" << modeSettings[2].offset;
         qDebug() << "Size:" << sizeof(modeSettings);
 
-        /* Clean data buffer for zero-padded crc32 checksum calculation. */
-        memset((void *)m_msg.data, 0, TELEMETRY_BUFFER_SIZE);
-        memcpy((void *)m_msg.data, (void *)modeSettings, sizeof(modeSettings));
-        m_msg.msg_id = 'M';
-        m_msg.size   = sizeof(modeSettings) + TELEMETRY_MSG_SIZE_BYTES;
-        m_msg.crc    = GetCRC32Checksum(m_msg);
-
-        SerialDataWrite(m_msg);
+        SerialDataWrite('M', (void *)modeSettings, sizeof(modeSettings));
     }
 
     if (GetSensorSettings()) {
@@ -452,14 +442,7 @@ void MainWindow::HandleApplySettings(bool warnDeadTimeChange)
                  << "Positive:" << ((sensorSettings[2] & SENSOR1_AXIS_DIR_POS) > 0);
         qDebug() << "Size:" << sizeof(sensorSettings);
 
-        /* Clean data buffer for zero-padded crc32 checksum calculation. */
-        memset((void *)m_msg.data, 0, TELEMETRY_BUFFER_SIZE);
-        memcpy((void *)m_msg.data, (void *)sensorSettings, sizeof(sensorSettings));
-        m_msg.msg_id = 'D';
-        m_msg.size   = sizeof(sensorSettings) + TELEMETRY_MSG_SIZE_BYTES;
-        m_msg.crc    = GetCRC32Checksum(m_msg);
-
-        SerialDataWrite(m_msg);
+        SerialDataWrite('D', (void *)sensorSettings, sizeof(sensorSettings));
     }
 
     if (m_deadtimeChanged && warnDeadTimeChange) {
@@ -481,14 +464,8 @@ void MainWindow::HandleSaveSettings()
 {
     HandleApplySettings(false);
 
-    m_msg.sof  = TELEMETRY_MSG_SOF;
-    m_msg.size = TELEMETRY_MSG_SIZE_BYTES;
-    m_msg.res  = 0;
-
     /* Save to EEPROM. */
-    m_msg.msg_id = 'c';
-    m_msg.crc    = GetCRC32Checksum(m_msg);
-    SerialDataWrite(m_msg);
+    SerialDataWrite('c', NULL, 0);
 
     if (m_deadtimeChanged) {
         QMessageBox::StandardButton reply;
@@ -500,9 +477,7 @@ void MainWindow::HandleSaveSettings()
             QMessageBox::Yes | QMessageBox::No, QMessageBox::Yes
         );
         if (reply == QMessageBox::Yes) {
-            m_msg.msg_id = 'X';
-            m_msg.crc    = GetCRC32Checksum(m_msg);
-            SerialDataWrite(m_msg);
+            SerialDataWrite('X', NULL, 0);
 
             SerialConnect(); // Disconnect actually...
         }
@@ -574,26 +549,12 @@ void MainWindow::HandleDataZClicked()
 
 void MainWindow::HandleAccCalibrate()
 {
-    m_msg.sof  = TELEMETRY_MSG_SOF;
-    m_msg.size = TELEMETRY_MSG_SIZE_BYTES;
-    m_msg.res  = 0;
-
-    /* Start accel calibration. */
-    m_msg.msg_id = ']';
-    m_msg.crc    = GetCRC32Checksum(m_msg);
-    SerialDataWrite(m_msg);
+    SerialDataWrite(']', NULL, 0);
 }
 
 void MainWindow::HandleGyroCalibrate()
 {
-    m_msg.sof  = TELEMETRY_MSG_SOF;
-    m_msg.size = TELEMETRY_MSG_SIZE_BYTES;
-    m_msg.res  = 0;
-
-    /* Start gyro calibration. */
-    m_msg.msg_id = '[';
-    m_msg.crc    = GetCRC32Checksum(m_msg);
-    SerialDataWrite(m_msg);
+    SerialDataWrite('[', NULL, 0);
 }
 
 /**
