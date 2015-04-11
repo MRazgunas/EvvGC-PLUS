@@ -127,7 +127,8 @@ MainWindow::MainWindow(QWidget *parent) :
     m_thread(0, SERIAL_CONNECT_ATTEMPTS),
     fConnected(false),
     boardStatus(0),
-    m_i2cStatus(new QCheckBox("I2C OK"))
+    m_i2cStatus(new QCheckBox("I2C OK")),
+    m_deadtimeChanged(false)
 {
     ui->setupUi(this);
 
@@ -136,6 +137,7 @@ MainWindow::MainWindow(QWidget *parent) :
     ui->mainToolBar->insertWidget(ui->actionConnect, m_SerialDeviceList);
     ui->mainToolBar->insertSeparator(ui->actionConnect);
 
+    m_i2cStatus->setToolTip("I2C bus works properly.");
     m_i2cStatus->setEnabled(false);
     m_i2cStatus->setCheckState(Qt::Checked);
     ui->statusBar->addPermanentWidget(m_i2cStatus);
@@ -352,7 +354,7 @@ void MainWindow::HandleReadSettings()
 /**
  * @brief MainWindow::HandleApplySettings
  */
-void MainWindow::HandleApplySettings()
+void MainWindow::HandleApplySettings(bool warnDeadTimeChange)
 {
     m_msg.sof = TELEMETRY_MSG_SOF;
     m_msg.res = 0;
@@ -459,6 +461,17 @@ void MainWindow::HandleApplySettings()
 
         SerialDataWrite(m_msg);
     }
+
+    if (m_deadtimeChanged && warnDeadTimeChange) {
+        QMessageBox::warning(
+            NULL,
+            "Dead time settings unsaved!",
+            "You made changes to dead time settings. You must save the settings "
+            "and reboot the board in order to make the settings active. Note that "
+            "the dead time significantly changes the output behavior, so you may "
+            "need to re-adjust other settings afterwards."
+        );
+    }
 }
 
 /**
@@ -466,7 +479,7 @@ void MainWindow::HandleApplySettings()
  */
 void MainWindow::HandleSaveSettings()
 {
-    HandleApplySettings();
+    HandleApplySettings(false);
 
     m_msg.sof  = TELEMETRY_MSG_SOF;
     m_msg.size = TELEMETRY_MSG_SIZE_BYTES;
@@ -476,6 +489,27 @@ void MainWindow::HandleSaveSettings()
     m_msg.msg_id = 'c';
     m_msg.crc    = GetCRC32Checksum(m_msg);
     SerialDataWrite(m_msg);
+
+    if (m_deadtimeChanged) {
+        QMessageBox::StandardButton reply;
+        reply = QMessageBox::question(
+            NULL,
+            "Dead time settings unsaved!",
+            "You made changes to dead time settings. Those changes will not "
+            "get applied until the board reboots. Issue reboot now?",
+            QMessageBox::Yes | QMessageBox::No, QMessageBox::Yes
+        );
+        if (reply == QMessageBox::Yes) {
+            m_msg.msg_id = 'X';
+            m_msg.crc    = GetCRC32Checksum(m_msg);
+            SerialDataWrite(m_msg);
+
+            SerialConnect(); // Disconnect actually...
+        }
+
+        // Don't bug the user until next change
+        m_deadtimeChanged = false;
+    }
 }
 
 /**
@@ -667,6 +701,7 @@ void MainWindow::ProcessSerialMessages(const TelemetryMessage &msg)
                 qDebug() << "I2C Error Info:\r\n  I2C last error code:" << i2cErrorInfo.last_i2c_error \
                       << "\r\n  I2C errors:" << i2cErrorInfo.i2c_error_counter;
                 m_i2cStatus->setCheckState(Qt::Unchecked);
+                m_i2cStatus->setToolTip("An I2C error occured! The board wiring causes noise on I2C, which may result in unpredictable behavior.");
                 i2cErrorInfoPrev = i2cErrorInfo;
                 /* I2C error counter changed, try to get debug message... */
                 m_msg.sof  = TELEMETRY_MSG_SOF;
@@ -832,6 +867,7 @@ void MainWindow::ProcessSerialMessages(const TelemetryMessage &msg)
             memcpy(buf, msg.data, msg.size);
             buf[msg.size] = '\0';
             qDebug() << "Debug log received:" << buf << "\r\n";
+            ui->statusBar->showMessage(tr("Debug message received from board: '%1'").arg(buf));
         }
         break;
     }
@@ -964,6 +1000,7 @@ bool MainWindow::GetOutputSettings()
     temp = ui->comboPitchDeadTime->currentIndex() << 4;
     if (temp != (outSettings[0].dt_cmd_id & PWM_OUT_DT_ID_MASK)) {
         fUpdated = true;
+        m_deadtimeChanged = true;
     }
     outSettings[0].dt_cmd_id = temp | temp2;
     temp2 = 0;
@@ -998,6 +1035,7 @@ bool MainWindow::GetOutputSettings()
     temp = ui->comboRollDeadTime->currentIndex() << 4;
     if (temp != (outSettings[1].dt_cmd_id & PWM_OUT_DT_ID_MASK)) {
         fUpdated = true;
+        m_deadtimeChanged = true;
     }
     outSettings[1].dt_cmd_id = temp | temp2;
     temp2 = 0;
@@ -1032,6 +1070,7 @@ bool MainWindow::GetOutputSettings()
     temp = ui->comboYawDeadTime->currentIndex() << 4;
     if (temp != (outSettings[2].dt_cmd_id & PWM_OUT_DT_ID_MASK)) {
         fUpdated = true;
+        m_deadtimeChanged = true;
     }
     outSettings[2].dt_cmd_id = temp | temp2;
     return fUpdated;

@@ -98,7 +98,7 @@ private slots:
     void ProcessSerialMessages(const TelemetryMessage &msg);
     void SerialError(const QString &s);
     void HandleReadSettings();
-    void HandleApplySettings();
+    void HandleApplySettings(bool warnDeadTimeChange = true);
     void HandleSaveSettings();
     void ProcessTimeout();
     void HandleDataXClicked();
@@ -133,6 +133,7 @@ private:
     quint16 inputValues[5];
     float motorOffset[3];
     QCheckBox *m_i2cStatus;
+	bool m_deadtimeChanged;
 };
 
 #endif // MAINWINDOW_H
