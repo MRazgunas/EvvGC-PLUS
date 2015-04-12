@@ -62,7 +62,7 @@ static msg_t BlinkerThread(void *arg) {
     } else {
       time = serusbcfg.usbp->state == USB_ACTIVE ? 250 : 500;
     }
-    palTogglePad(GPIOB, GPIOB_LED_BLUE);
+    palTogglePad(GPIOB, GPIOB_LED_A);
     chThdSleepMilliseconds(time);
   }
   /* This point should never be reached. */
@@ -83,12 +83,14 @@ static msg_t PollMPU6050Thread(void *arg) {
     if (mpu6050GetNewData(&g_IMU1)) {
       chBSemSignal(&bsemIMU1DataReady);
     } else {
+      /* Restart I2C2 bus in case of an error. */
       i2cStop(&I2CD2);
       i2cStart(&I2CD2, &i2cfg_d2);
     }
     if ((g_boardStatus & MPU6050_HIGH_DETECTED) && mpu6050GetNewData(&g_IMU2)) {
       chBSemSignal(&bsemIMU2DataReady);
     } else {
+      /* Restart I2C2 bus in case of an error. */
       i2cStop(&I2CD2);
       i2cStart(&I2CD2, &i2cfg_d2);
     }
@@ -173,7 +175,6 @@ int main(void) {
   sdStart(&SD4, NULL);
 
   /* Activates the I2C driver 2. */
-  i2cInit();
   i2cStart(&I2CD2, &i2cfg_d2);
 
   /* Enables the CRC peripheral clock. */

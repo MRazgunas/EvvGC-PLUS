@@ -77,7 +77,7 @@ static Message msg = {
   {0},
   0xFFFFFFFF
 };
-static uint8_t *msgPos = (uint8_t*)&msg;
+static uint8_t *msgPos = (uint8_t *)&msg;
 static Message debugMsg;
 
 static size_t bytesRequired = TELEMETRY_MSG_HDR_SIZE;
@@ -269,14 +269,14 @@ static void telemetryProcessCommand(const PMessage pMsg) {
     imuCalibrationSet(IMU2_CALIBRATE_ACCEL);
     telemetryPositiveResponse(pMsg);
     break;
-  case 'l': /* Outputs last debug message*/
+  case 'l': /* Outputs last debug message. */
     memset((void *)pMsg->data, 0, TELEMETRY_BUFFER_SIZE);
     memcpy((void *)pMsg->data, (void *)debugMsg.data, debugMsg.size);
     pMsg->size = debugMsg.size;
     pMsg->crc  = telemetryGetCRC32Checksum(&debugMsg);
     debugMsg.size = 0;
     break;
-  case 'X': /* Hard reset the board */
+  case 'X': /* Hard reset the board. */
     telemetryPositiveResponse(pMsg);
 
     chThdSleepMilliseconds(100);
@@ -315,8 +315,7 @@ static void telemetryProcessCommand(const PMessage pMsg) {
  *        sync to next SOF and throw away any after packet. This means the next
  *        (few) packet(s) may be dropped - still better than no comm...
  */
-static void telemetryReadSerialDataResync(uint8_t len)
-{
+static void telemetryReadSerialDataResync(uint8_t len) {
   uint8_t i;
 
   while (len) {
@@ -358,13 +357,12 @@ void telemetryReadSerialData(void) {
   chSysLock();
   /* The following function must be called from within a system lock zone. */
   size_t bytesAvailable = chnBytesAvailable(g_chnp);
-  size_t curReadLen;
   chSysUnlock();
 
   while (bytesAvailable) {
     if (bytesAvailable >= bytesRequired) {
       if (bytesRequired > 0) {
-        palTogglePad(GPIOA, GPIOA_LED_RED);
+        palTogglePad(GPIOA, GPIOA_LED_B);
         chnRead(g_chnp, msgPos, bytesRequired);
         msgPos += bytesRequired;
         bytesAvailable -= bytesRequired;
@@ -377,7 +375,7 @@ void telemetryReadSerialData(void) {
       break;
     }
 
-    curReadLen = msgPos - (uint8_t*)&msg;
+    size_t curReadLen = msgPos - (uint8_t *)&msg;
     if (!IS_MSG_VALID()) {
       telemetryReadSerialDataResync(curReadLen);
     } else if (curReadLen == TELEMETRY_MSG_HDR_SIZE) {
@@ -385,22 +383,18 @@ void telemetryReadSerialData(void) {
     } else if (bytesRequired == 0) {
       /* Whole packet is read, check and process it... */
       /* Move CRC */
-      memmove(
-        &msg.crc, (uint8_t*)&msg + msg.size - TELEMETRY_MSG_CRC_SIZE,
-        TELEMETRY_MSG_CRC_SIZE
-      );
-      /* Zero-out unused data for crc32 calculation*/
-      memset(
-        &msg.data[msg.size - TELEMETRY_MSG_SVC_SIZE], 0,
-        TELEMETRY_BUFFER_SIZE - (msg.size - TELEMETRY_MSG_SVC_SIZE)
-      );
+      memmove(&msg.crc, (uint8_t *)&msg + msg.size - TELEMETRY_MSG_CRC_SIZE,
+        TELEMETRY_MSG_CRC_SIZE);
+      /* Zero-out unused data for crc32 calculation. */
+      memset(&msg.data[msg.size - TELEMETRY_MSG_SVC_SIZE], 0,
+        TELEMETRY_BUFFER_SIZE - msg.size + TELEMETRY_MSG_SVC_SIZE);
 
       if (msg.crc == telemetryGetCRC32Checksum(&msg)) {
         telemetryProcessCommand(&msg);
       } else {
         uint8_t i;
         for (i =0; i < 50; i++) {
-          palTogglePad(GPIOA, GPIOA_LED_RED);
+          palTogglePad(GPIOA, GPIOA_LED_B);
           chThdSleepMilliseconds(US2ST(10500));
         }
       }
@@ -412,11 +406,14 @@ void telemetryReadSerialData(void) {
   }
 }
 
-void debugLog(const char *str)
-{
+/**
+ * @brief
+ */
+void debugLog(const char *str) {
   uint8_t l = strlen(str) + 1;
-  if (l > sizeof(debugMsg.data))
+  if (l > sizeof(debugMsg.data)) {
     l = sizeof(debugMsg.data);
+  }
 
   memcpy(debugMsg.data, str, l);
   debugMsg.size = l + TELEMETRY_MSG_SVC_SIZE;

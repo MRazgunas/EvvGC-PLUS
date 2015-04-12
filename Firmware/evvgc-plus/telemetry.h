@@ -24,7 +24,6 @@ extern BaseChannel *g_chnp;
 extern "C" {
 #endif
 void telemetryReadSerialData(void);
-
 void debugLog(const char *str);
 #ifdef __cplusplus
 }

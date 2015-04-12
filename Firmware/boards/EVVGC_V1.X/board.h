@@ -42,8 +42,8 @@
  * IO pins assignments.
  */
 #define GPIOA_USB_DP            12
-#define GPIOB_LED_BLUE          12
-#define GPIOA_LED_RED           3
+#define GPIOB_LED_A             12 // Red LED on v1.2, blue LED on v1.3.
+#define GPIOA_LED_B             3  // Red LED on v1.3 only.
 
 
 /*
@@ -76,7 +76,7 @@
  * PA0  - Alternate Push Pull output (TIM5 CH1).
  * PA1  - Alternate Push Pull output (TIM5 CH2).
  * PA2  - Alternate Push Pull output (TIM5 CH3).
- * PA3  - Push Pull output  (LED2).
+ * PA3  - Push Pull output (LED_B, v1.3 only).
  * PA7  - Alternate Push Pull output (TIM8 CH1N).
  * PA8  - Alternate Push Pull output (TIM1 CH1).
  * PA9  - Alternate Push Pull output (TIM1 CH2).
@@ -102,7 +102,7 @@
  * PB9  - Alternate Push Pull output (TIM4 CH4).
  * PB10 - Alternate Open Drain output (SCL).
  * PB11 - Alternate Open Drain output (SDA).
- * PB12 - Push Pull output (LED).
+ * PB12 - Push Pull output (LED_A).
  * PB13 - Alternate Push Pull output (TIM1 CH1N).
  * PB14 - Alternate Push Pull output (TIM1 CH2N).
  * PB15 - Alternate Push Pull output (TIM1 CH3N).
