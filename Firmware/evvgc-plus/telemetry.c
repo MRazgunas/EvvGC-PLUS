@@ -261,14 +261,6 @@ static void telemetryProcessCommand(const PMessage pMsg) {
     imuCalibrationSet(IMU1_CALIBRATE_ACCEL);
     telemetryPositiveResponse(pMsg);
     break;
-  case '{': /* Calibrate gyroscope. */
-    imuCalibrationSet(IMU1_CALIBRATE_GYRO);
-    telemetryPositiveResponse(pMsg);
-    break;
-  case '}': /* Calibrate accelerometer. */
-    imuCalibrationSet(IMU2_CALIBRATE_ACCEL);
-    telemetryPositiveResponse(pMsg);
-    break;
   case 'l': /* Outputs last debug message. */
     memset((void *)pMsg->data, 0, TELEMETRY_BUFFER_SIZE);
     memcpy((void *)pMsg->data, (void *)debugMsg.data, debugMsg.size);

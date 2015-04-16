@@ -88,7 +88,6 @@ typedef struct tagIMUStruct {
 
 /* IMU data structure. */
 extern IMUStruct g_IMU1;
-extern IMUStruct g_IMU2;
 /* Packed sensor settings. */
 extern uint8_t g_sensorSettings[3];
 
