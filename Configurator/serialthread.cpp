@@ -74,7 +74,9 @@ void SerialThread::run()
         return;
     }
 
+    emit this->serialConnected();
     qDebug() << "Serial Thread is ready...";
+
     m_mutex.lock();
     /* Unlock resources and wait for the first job. */
     m_cond.wait(&m_mutex);
