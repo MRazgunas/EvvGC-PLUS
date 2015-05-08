@@ -54,17 +54,18 @@ void SerialThread::run()
     int cr;
 
     serial.setPortName(m_portName);
-    serial.setBaudRate(57600);
-    serial.setDataBits(QSerialPort::Data8);
-    serial.setParity(QSerialPort::NoParity);
-    serial.setStopBits(QSerialPort::OneStop);
-    serial.setFlowControl(QSerialPort::NoFlowControl);
-
     for (cr = 0; cr < m_connectAttempts; cr++) {
-        if (serial.open(QIODevice::ReadWrite))
+        if (serial.open(QIODevice::ReadWrite)) {
+            serial.setBaudRate(57600);
+            serial.setDataBits(QSerialPort::Data8);
+            serial.setParity(QSerialPort::NoParity);
+            serial.setStopBits(QSerialPort::OneStop);
+            serial.setFlowControl(QSerialPort::NoFlowControl);
             break;
-        sleep(1);
-        qDebug() << "Serial connect retry...";
+        } else {
+            sleep(1);
+            qDebug() << "Serial connect retry...";
+        }
     }
     if (cr == m_connectAttempts) {
         qDebug() << "Connection failed!";
