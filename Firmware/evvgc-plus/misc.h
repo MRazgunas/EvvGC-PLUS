@@ -14,8 +14,8 @@
     limitations under the License.
 */
 
-#ifndef MISC_H_
-#define MISC_H_
+#ifndef _MISC_H_
+#define _MISC_H_
 
 #include "hal.h"
 #include <math.h>
@@ -146,4 +146,4 @@ static inline uint32_t crcCRC32(const uint32_t pBuf[], uint32_t length) {
 }
 #endif
 
-#endif /* MISC_H_ */
+#endif /* _MISC_H_ */

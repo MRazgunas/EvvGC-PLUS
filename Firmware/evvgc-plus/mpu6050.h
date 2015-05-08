@@ -14,8 +14,8 @@
     limitations under the License.
 */
 
-#ifndef MPU6050_H_
-#define MPU6050_H_
+#ifndef _MPU6050_H_
+#define _MPU6050_H_
 
 #define MPU6050_I2C_ADDR_A0_LOW     0x68
 #define MPU6050_I2C_ADDR_A0_HIGH    0x69
@@ -106,4 +106,4 @@ extern "C" {
 }
 #endif
 
-#endif /* MPU6050_H_ */
+#endif /* _MPU6050_H_ */

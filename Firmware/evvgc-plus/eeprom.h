@@ -14,8 +14,8 @@
     limitations under the License.
 */
 
-#ifndef EEPROM_H_
-#define EEPROM_H_
+#ifndef _EEPROM_H_
+#define _EEPROM_H_
 
 /* Address of the 24C02 EEPROM chip: 1 0 1 0 1 1 1; */
 #define EEPROM_24C02_ADDR       0x57
@@ -35,4 +35,4 @@ uint8_t eepromIsDataLeft(void);
 }
 #endif
 
-#endif /* TELEMETRY_H_ */
+#endif /* _EEPROM_H_ */

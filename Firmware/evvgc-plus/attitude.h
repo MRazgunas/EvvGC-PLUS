@@ -14,8 +14,8 @@
     limitations under the License.
 */
 
-#ifndef ATTITUDE_H_
-#define ATTITUDE_H_
+#ifndef _ATTITUDE_H_
+#define _ATTITUDE_H_
 
 #include "mpu6050.h"
 
@@ -54,4 +54,4 @@ extern "C" {
 }
 #endif
 
-#endif /* ATTITUDE_H_ */
+#endif /* _ATTITUDE_H_ */
