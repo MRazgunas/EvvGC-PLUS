@@ -566,7 +566,6 @@ void MainWindow::ProcessSerialMessages(const TelemetryMessage &msg)
     float rpy[3];
     float *pfloatBuf;
     QQuaternion attiQ;
-    QQuaternion diffQ;
     bool fEnlarge = false;
     double key = QDateTime::currentDateTime().toMSecsSinceEpoch()/1000.0;
 
@@ -764,19 +763,7 @@ void MainWindow::ProcessSerialMessages(const TelemetryMessage &msg)
              * Adjust indexes and direction of rotations of IMU data to match
              * OpenGL coordinate system.
              */
-            attiQ = QQuaternion(pfloatBuf[0], pfloatBuf[1], -pfloatBuf[3], -pfloatBuf[2]);
-
-            /*
-             * Find the difference between last attitude and current attitude.
-             * diffQ is a rotation quaternion that transforms lastQ into attiQ.
-             * Because attiQ is normalized quaternion, the inverse of attiQ is equal to
-             * conjugate of attiQ.
-             * NOTE! The order of multiplication IS IMPORTANT!
-            */
-            diffQ = attiQ.conjugate() * lastQ;
-            diffQ.normalize();
-
-            lastQ = attiQ;
+            attiQ = QQuaternion(pfloatBuf[0], pfloatBuf[1], pfloatBuf[3], -pfloatBuf[2]);
 
             ui->plotData->graph(0)->setVisible(ui->checkDataX->isChecked());
             ui->plotData->graph(1)->setVisible(ui->checkDataY->isChecked());
@@ -805,7 +792,7 @@ void MainWindow::ProcessSerialMessages(const TelemetryMessage &msg)
             ui->plotData->xAxis->setRange(key+0.25, 8, Qt::AlignRight);
             ui->plotData->replot();
 
-            ui->widget->rotateBy(&diffQ);
+            ui->widget->rotateBy(&attiQ);
         } else {
             qDebug() << "RPY size mismatch:" << (msg.size - TELEMETRY_MSG_SIZE_BYTES) \
                      << "|" << (sizeof(float) * 4);

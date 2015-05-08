@@ -7,6 +7,8 @@ GLWidget::GLWidget(QWidget *parent, QGLWidget *shareWidget) :
     QGLWidget(parent, shareWidget)
 {
     program = 0;
+    quatCube  = QQuaternion(1.0f, 0.0f, 0.0f, 0.0f);
+    quatWorld = QQuaternion(1.0f, 0.0f, 0.0f, 0.0f);
 }
 
 GLWidget::~GLWidget()
@@ -15,7 +17,7 @@ GLWidget::~GLWidget()
 
 void GLWidget::rotateBy(QQuaternion *q)
 {
-    rotation = *q * rotation;
+    quatCube = *q;
     updateGL();
 }
 
@@ -75,7 +77,7 @@ void GLWidget::paintGL()
     QMatrix4x4 m;
     m.ortho(-0.5f, +0.5f, +0.5f, -0.5f, 4.0f, 15.0f);
     m.translate(0.0f, 0.0f, -10.0f);
-    m.rotate(rotation);
+    m.rotate(quatWorld * quatCube);
 
     program->setUniformValue("matrix", m);
     program->enableAttributeArray(PROGRAM_VERTEX_ATTRIBUTE);
@@ -112,12 +114,12 @@ void GLWidget::mouseMoveEvent(QMouseEvent *event)
     if (event->buttons() & Qt::LeftButton) {
         QVector3D n = QVector3D(diff.y(), -diff.x(), 0.0).normalized();
         rotationAxis = (rotationAxis + n).normalized();
-        rotation = QQuaternion::fromAxisAndAngle(rotationAxis, angularSpeed) * rotation;
+        quatWorld = QQuaternion::fromAxisAndAngle(rotationAxis, angularSpeed) * quatWorld;
         updateGL();
     } else if (event->buttons() & Qt::RightButton) {
         QVector3D n = QVector3D(diff.y(), 0.0, diff.x()).normalized();
         rotationAxis = (rotationAxis + n).normalized();
-        rotation = QQuaternion::fromAxisAndAngle(rotationAxis, angularSpeed) * rotation;
+        quatWorld = QQuaternion::fromAxisAndAngle(rotationAxis, angularSpeed) * quatWorld;
         updateGL();
     }
 

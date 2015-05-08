@@ -33,7 +33,8 @@ private:
     QVector2D mouseLastPos;
     QVector3D rotationAxis;
     qreal angularSpeed;
-    QQuaternion rotation;
+    QQuaternion quatCube;
+    QQuaternion quatWorld;
 
     GLuint textures[6];
     QVector<QVector3D> vertices;
