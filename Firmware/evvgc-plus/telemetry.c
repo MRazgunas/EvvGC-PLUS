@@ -60,6 +60,8 @@ typedef struct tagMessage {
  */
 /* Board status variable. */
 extern uint32_t g_boardStatus;
+/* Main thread termination flag. */
+extern bool_t g_runMain;
 /* I2C error info structure. */
 extern I2CErrorStruct g_i2cErrorInfo;
 /* Console input/output handle. */
@@ -270,22 +272,7 @@ static void telemetryProcessCommand(const PMessage pMsg) {
     break;
   case 'X': /* Hard reset the board. */
     telemetryPositiveResponse(pMsg);
-
-    chThdSleepMilliseconds(100);
-
-    chSysLockFromIsr();
-    /* disconnect USB */
-    usbStop(serusbcfg.usbp);
-    usbDisconnectBus(serusbcfg.usbp);
-    chThdSleepMilliseconds(2000);
-    usbConnectBus(serusbcfg.usbp);
-    chSysDisable();
-
-    SCB_AIRCR = (u32)AIRCR_VECTKEY | 0x04;
-
-    while (1) {
-      asm volatile("nop");
-    }
+    g_runMain = FALSE;
     break;
   default: /* Unknown command. */
     telemetryNegativeResponse(pMsg);

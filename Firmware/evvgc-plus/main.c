@@ -31,9 +31,19 @@
 #define MPU6050_LOW_DETECTED    0x00000001
 #define EEPROM_24C02_DETECTED   0x00000004
 
+/**
+ * Global variables
+ */
+/* Status of the board. */
 uint32_t g_boardStatus = 0;
+/* Main thread termination flag. */
+bool_t g_runMain = TRUE;
+/* I2C error info structure. */
 I2CErrorStruct g_i2cErrorInfo = {0, 0};
 
+/**
+ * Local variables
+ */
 /* I2C2 configuration for I2C driver 2 */
 static const I2CConfig i2cfg_d2 = {
   OPMODE_I2C,
@@ -48,12 +58,12 @@ SerialUSBDriver SDU1;
 static BinarySemaphore bsemIMU1DataReady;
 
 /**
- * Red LED blinker thread. Times are in milliseconds.
+ * LED blinker thread. Times are in milliseconds.
  */
 static WORKING_AREA(waBlinkerThread, 64);
 static msg_t BlinkerThread(void *arg) {
   (void)arg;
-  while (TRUE) {
+  while (!chThdShouldTerminate()) {
     systime_t time;
     if (g_boardStatus & IMU_CALIBRATION_MASK) {
       time = 50;
@@ -63,7 +73,7 @@ static msg_t BlinkerThread(void *arg) {
     palTogglePad(GPIOB, GPIOB_LED_A);
     chThdSleepMilliseconds(time);
   }
-  /* This point should never be reached. */
+  /* This point may be reached if shut down is requested. */
   return 0;
 }
 
@@ -77,7 +87,7 @@ static msg_t PollMPU6050Thread(void *arg) {
 
   (void)arg;
   time = chTimeNow();
-  while (TRUE) {
+  while (!chThdShouldTerminate()) {
     if (mpu6050GetNewData(&g_IMU1)) {
       chBSemSignal(&bsemIMU1DataReady);
     } else {
@@ -88,7 +98,7 @@ static msg_t PollMPU6050Thread(void *arg) {
     /* Wait until the next 1.5 milliseconds passes. */
     chThdSleepUntil(time += US2ST(1500));
   }
-  /* This point should never be reached. */
+  /* This point may be reached if shut down is requested. */
   return 0;
 }
 
@@ -102,7 +112,7 @@ static WORKING_AREA(waAttitudeThread, 2048);
 static msg_t AttitudeThread(void *arg) {
   (void)arg;
   attitudeInit();
-  while (TRUE) {
+  while (!chThdShouldTerminate()) {
     /* Process IMU1 new data ready event. */
     if (chBSemWait(&bsemIMU1DataReady) == RDY_OK) {
       if (g_boardStatus & IMU1_CALIBRATION_MASK) {
@@ -121,7 +131,7 @@ static msg_t AttitudeThread(void *arg) {
       actuatorsUpdate();
     }
   }
-  /* This point should never be reached. */
+  /* This point may be reached if shut down is requested. */
   return 0;
 }
 
@@ -130,6 +140,10 @@ static msg_t AttitudeThread(void *arg) {
  * @details
  */
 int main(void) {
+  Thread *tpBlinker  = NULL;
+  Thread *tpPoller   = NULL;
+  Thread *tpAttitude = NULL;
+
   /* System initializations.
    * - HAL initialization, this also initializes the configured device drivers
    *   and performs the board-specific initializations.
@@ -184,9 +198,9 @@ int main(void) {
     chBSemInit(&bsemIMU1DataReady, TRUE);
 
     /* Creates the MPU6050 polling thread and attitude calculation thread. */
-    chThdCreateStatic(waPollMPU6050Thread, sizeof(waPollMPU6050Thread),
+    tpPoller = chThdCreateStatic(waPollMPU6050Thread, sizeof(waPollMPU6050Thread),
       NORMALPRIO + 1, PollMPU6050Thread, NULL);
-    chThdCreateStatic(waAttitudeThread, sizeof(waAttitudeThread),
+    tpAttitude = chThdCreateStatic(waAttitudeThread, sizeof(waAttitudeThread),
       HIGHPRIO, AttitudeThread, NULL);
 
     /* Starts motor drivers. */
@@ -197,11 +211,11 @@ int main(void) {
   }
 
   /* Creates the blinker thread. */
-  chThdCreateStatic(waBlinkerThread, sizeof(waBlinkerThread),
+  tpBlinker = chThdCreateStatic(waBlinkerThread, sizeof(waBlinkerThread),
     LOWPRIO, BlinkerThread, NULL);
 
   /* Normal main() thread activity. */
-  while (TRUE) {
+  while (g_runMain) {
     g_chnp = serusbcfg.usbp->state == USB_ACTIVE ? (BaseChannel *)&SDU1 : (BaseChannel *)&SD4;
     telemetryReadSerialData();
     if ((g_boardStatus & EEPROM_24C02_DETECTED) && eepromIsDataLeft()) {
@@ -209,6 +223,36 @@ int main(void) {
     }
     chThdSleepMilliseconds(TELEMETRY_SLEEP_MS);
   }
-  /* This point should never be reached. */
+
+  /* Starting the shut-down sequence.*/
+  if (tpAttitude != NULL) {
+    chThdTerminate(tpAttitude); /* Requesting termination.                  */
+    chThdWait(tpAttitude);      /* Waiting for the actual termination.      */
+  }
+  if (tpPoller != NULL) {
+    chThdTerminate(tpPoller);   /* Requesting termination.                  */
+    chThdWait(tpPoller);        /* Waiting for the actual termination.      */
+  }
+  if (tpBlinker != NULL) {
+    chThdTerminate(tpBlinker);  /* Requesting termination.                  */
+    chThdWait(tpBlinker);       /* Waiting for the actual termination.      */
+  }
+
+  mixedInputStop();             /* Stopping mixed input devices.            */
+  pwmOutputStop();              /* Stopping pwm output devices.             */
+  i2cStop(&I2CD2);              /* Stopping I2C2 device.                    */
+  sdStop(&SD4);                 /* Stopping serial port 4.                  */
+  usbStop(serusbcfg.usbp);      /* Stopping USB port.                       */
+  usbDisconnectBus(serusbcfg.usbp);
+  sduStop(&SDU1);               /* Stopping serial-over-USB CDC driver.     */
+
+  chSysDisable();
+
+  /* Reset of all peripherals. */
+  rccResetAPB1(0xFFFFFFFF);
+  rccResetAPB2(0xFFFFFFFF);
+
+  NVIC_SystemReset();
+
   return 0;
 }
