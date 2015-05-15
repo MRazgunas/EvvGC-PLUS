@@ -19,6 +19,7 @@
 
 #include "pwmio.h"
 
+/* C libraries: */
 #include <math.h>
 #include <string.h>
 

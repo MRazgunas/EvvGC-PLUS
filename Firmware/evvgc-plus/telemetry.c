@@ -17,16 +17,16 @@
 #include "ch.h"
 #include "hal.h"
 
-/* C libraries: */
-#include <string.h>
-
-#include "telemetry.h"
-#include "attitude.h"
-#include "pwmio.h"
 #include "mpu6050.h"
+#include "pwmio.h"
 #include "eeprom.h"
 #include "misc.h"
+#include "attitude.h"
 #include "usbcfg.h"
+#include "telemetry.h"
+
+/* C libraries: */
+#include <string.h>
 
 /* Predefined telemetry responses. */
 #define TELEMETRY_RESP_OK         "_OK_"

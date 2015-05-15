@@ -23,16 +23,22 @@
 #include "ch.h"
 #include "hal.h"
 
+#include "mpu6050.h"
+#include "pwmio.h"
+#include "telemetry.h"
+#include "misc.h"
+#include "attitude.h"
+#include "eeprom.h"
+
 /* C libraries: */
 #include <string.h>
 
-#include "eeprom.h"
-#include "attitude.h"
-#include "pwmio.h"
-#include "mpu6050.h"
-#include "misc.h"
-#include "telemetry.h"
-
+/* Address of the 24C02 EEPROM chip: 1 0 1 0 1 1 1; */
+#define EEPROM_24C02_ADDR       0x57
+/* Size of the chip is 256 bytes (2048 bits or 2kbit); */
+#define EEPROM_24C02_SIZE       0x0100
+/* 8 Bytes per page; */
+#define EEPROM_24C02_PAGE_SIZE  0x08
 /* I2C read transaction time-out in milliseconds. */
 #define EEPROM_READ_TIMEOUT_MS  0x05
 /* I2C write transaction time-out in milliseconds. */

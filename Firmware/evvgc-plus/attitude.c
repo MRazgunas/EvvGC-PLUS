@@ -31,12 +31,16 @@
     Pitch (X) then Roll (Y) and then Yaw (Z).
 */
 
-/* C libraries: */
-#include <string.h>
+#include "ch.h"
+#include "hal.h"
 
+#include "mpu6050.h"
+#include "pwmio.h"
 #include "misc.h"
 #include "attitude.h"
-#include "pwmio.h"
+
+/* C libraries: */
+#include <string.h>
 
 #define FIXED_DT_STEP             0.0015f
 
@@ -46,6 +50,11 @@
 #define ACCEL_TAU                 0.1f
 #define INPUT_SIGNAL_ALPHA        300.0f
 #define MODE_FOLLOW_DEAD_BAND     M_PI / 36.0f
+
+/* Input modes: */
+#define INPUT_MODE_ANGLE          0x00
+#define INPUT_MODE_SPEED          0x01
+#define INPUT_MODE_FOLLOW         0x02
 
 /* PID controller structure. */
 typedef struct tagPIDStruct {

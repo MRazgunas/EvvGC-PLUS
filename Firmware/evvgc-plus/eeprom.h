@@ -17,13 +17,6 @@
 #ifndef _EEPROM_H_
 #define _EEPROM_H_
 
-/* Address of the 24C02 EEPROM chip: 1 0 1 0 1 1 1; */
-#define EEPROM_24C02_ADDR       0x57
-/* Size of the chip is 256 bytes (2048 bits or 2kbit); */
-#define EEPROM_24C02_SIZE       0x0100
-/* 8 Bytes per page; */
-#define EEPROM_24C02_PAGE_SIZE  0x08
-
 #ifdef __cplusplus
 extern "C" {
 #endif

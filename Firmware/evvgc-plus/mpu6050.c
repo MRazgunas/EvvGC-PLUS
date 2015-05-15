@@ -21,15 +21,15 @@
  * and then begin reading process.
  */
 
-/* C libraries: */
-#include <string.h>
-
 #include "ch.h"
 #include "hal.h"
 
-#include "mpu6050.h"
 #include "misc.h"
 #include "telemetry.h"
+#include "mpu6050.h"
+
+/* C libraries: */
+#include <string.h>
 
 #define MPU6050_RX_BUF_SIZE   0x0E
 #define MPU6050_TX_BUF_SIZE   0x05

@@ -17,7 +17,6 @@
 #ifndef _MISC_H_
 #define _MISC_H_
 
-#include "hal.h"
 #include <math.h>
 
 #define RAD2DEG     ( 180.0f / M_PI )
