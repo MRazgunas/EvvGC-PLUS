@@ -54,18 +54,42 @@ void SerialThread::run()
     int cr;
 
     serial.setPortName(m_portName);
+    if (!serial.setBaudRate(57600)) {
+        qDebug() << "Serial set baud rate failed!";
+        emit this->serialError(tr("Can't set baud rate for %1, error code %2. %3.")
+            .arg(m_portName).arg(serial.error()).arg(serial.errorString()));
+        return;
+    }
+    if (!serial.setDataBits(QSerialPort::Data8)) {
+        qDebug() << "Serial set data bits failed!";
+        emit this->serialError(tr("Can't set data bits for %1, error code %2. %3.")
+            .arg(m_portName).arg(serial.error()).arg(serial.errorString()));
+        return;
+    }
+    if (!serial.setParity(QSerialPort::NoParity)) {
+        qDebug() << "Serial set parity failed!";
+        emit this->serialError(tr("Can't set parity for %1, error code %2. %3.")
+            .arg(m_portName).arg(serial.error()).arg(serial.errorString()));
+        return;
+    }
+    if (!serial.setStopBits(QSerialPort::OneStop)) {
+        qDebug() << "Serial set stop bits failed!";
+        emit this->serialError(tr("Can't set stop bits for %1, error code %2. %3.")
+            .arg(m_portName).arg(serial.error()).arg(serial.errorString()));
+        return;
+    }
+    if (!serial.setFlowControl(QSerialPort::NoFlowControl)) {
+        qDebug() << "Serial set flow control failed!";
+        emit this->serialError(tr("Can't set flow control for %1, error code %2. %3.")
+            .arg(m_portName).arg(serial.error()).arg(serial.errorString()));
+        return;
+    }
     for (cr = 0; cr < m_connectAttempts; cr++) {
         if (serial.open(QIODevice::ReadWrite)) {
-            serial.setBaudRate(57600);
-            serial.setDataBits(QSerialPort::Data8);
-            serial.setParity(QSerialPort::NoParity);
-            serial.setStopBits(QSerialPort::OneStop);
-            serial.setFlowControl(QSerialPort::NoFlowControl);
             break;
-        } else {
-            sleep(1);
-            qDebug() << "Serial connect retry...";
         }
+        sleep(1);
+        qDebug() << "Serial connect retry...";
     }
     if (cr == m_connectAttempts) {
         qDebug() << "Connection failed!";
