@@ -108,6 +108,7 @@ private slots:
 
 private:
     void FillPortsInfo();
+    void UpdatePlotData(const float xyz[3]);
     bool GetStabilizationSettings();
     bool SetStabilizationSettings();
     bool GetOutputSettings();
@@ -124,14 +125,14 @@ private:
 
 private:
     Ui::MainWindow *ui;
-    QComboBox *m_SerialDeviceList;
-    SerialThread m_thread;
+    QComboBox *m_serialDeviceList;
+    SerialThread m_serialThread;
     QTimer m_timer;
-    bool fConnected;
+    bool m_fConnected;
     TelemetryMessage m_msg;
-    quint32 boardStatus;
-    quint16 inputValues[5];
-    float motorOffset[3];
+    quint32 m_boardStatus;
+    quint16 m_inputValues[5];
+    float m_motorOffset[3];
     QCheckBox *m_i2cStatus;
     bool m_deadtimeChanged;
 };

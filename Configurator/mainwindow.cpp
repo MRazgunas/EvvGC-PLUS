@@ -67,11 +67,10 @@ static InputModeSettings modeSettings[3] = {
  *       nIx - n-th bit of axis ID of sensor x.
  */
 static quint8 sensorSettings[3] = {
-    0x00 |
-    SENSOR1_AXIS_DIR_POS |
-    SENSOR2_AXIS_DIR_POS, /* Pitch (X) */
-    0x11,                 /* Roll  (Y) */
-    0x22                  /* Yaw   (Z) */
+    0x00,                 /* Pitch (X) */
+    0x01,                 /* Roll  (Y) */
+    0x02 |
+    SENSOR1_AXIS_DIR_POS  /* Yaw   (Z) */
 };
 
 static quint8 sensorAxes[3] = {
@@ -80,7 +79,15 @@ static quint8 sensorAxes[3] = {
     2  /* Top axis   +Z; */
 };
 
-/* Axes mapping matrix. */
+/* Axes mapping matrix:
+ * 0 - +X;
+ * 1 - +Y;
+ * 2 - +Z;
+ * 3 - -X;
+ * 4 - -Y;
+ * 5 - -Z;
+ * 6 - Error;
+ */
 static quint8 amMtx[6][6] = {
 //T:+X,+Y,+Z,-X,-Y,-Z  //R:
     {6, 5, 1, 6, 2, 4},//+X;
@@ -123,18 +130,18 @@ static inline void Quaternion2RPY(const float q[4], float rpy[3])
 MainWindow::MainWindow(QWidget *parent) :
     QMainWindow(parent),
     ui(new Ui::MainWindow),
-    m_SerialDeviceList(new QComboBox),
-    m_thread(0, SERIAL_CONNECT_ATTEMPTS),
-    fConnected(false),
-    boardStatus(0),
+    m_serialDeviceList(new QComboBox),
+    m_serialThread(0, SERIAL_CONNECT_ATTEMPTS),
+    m_fConnected(false),
+    m_boardStatus(0),
     m_i2cStatus(new QCheckBox("I2C OK")),
     m_deadtimeChanged(false)
 {
     ui->setupUi(this);
 
-    m_SerialDeviceList->setMinimumWidth(250);
-    m_SerialDeviceList->setEnabled(false);
-    ui->mainToolBar->insertWidget(ui->actionConnect, m_SerialDeviceList);
+    m_serialDeviceList->setMinimumWidth(250);
+    m_serialDeviceList->setEnabled(false);
+    ui->mainToolBar->insertWidget(ui->actionConnect, m_serialDeviceList);
     ui->mainToolBar->insertSeparator(ui->actionConnect);
 
     m_i2cStatus->setToolTip("I2C bus works properly.");
@@ -149,10 +156,10 @@ MainWindow::MainWindow(QWidget *parent) :
     connect(ui->pushSensor1AccCalibrate, SIGNAL(clicked()), this, SLOT(HandleAccCalibrate()));
     connect(ui->pushSensor1GyroCalibrate, SIGNAL(clicked()), this, SLOT(HandleGyroCalibrate()));
     connect(&m_timer, SIGNAL(timeout()), this, SLOT(ProcessTimeout()));
-    connect(&m_thread, SIGNAL(serialConnected()), this, SLOT(SerialConnected()));
-    connect(&m_thread, SIGNAL(serialError(QString)), this, SLOT(SerialError(QString)));
-    connect(&m_thread, SIGNAL(serialTimeout(QString)), this, SLOT(SerialError(QString)));
-    connect(&m_thread, SIGNAL(serialDataReady(TelemetryMessage)), this, SLOT(ProcessSerialMessages(TelemetryMessage)));
+    connect(&m_serialThread, SIGNAL(serialConnected()), this, SLOT(SerialConnected()));
+    connect(&m_serialThread, SIGNAL(serialError(QString)), this, SLOT(SerialError(QString)));
+    connect(&m_serialThread, SIGNAL(serialTimeout(QString)), this, SLOT(SerialError(QString)));
+    connect(&m_serialThread, SIGNAL(serialDataReady(TelemetryMessage)), this, SLOT(ProcessSerialMessages(TelemetryMessage)));
 
     FillPortsInfo();
 
@@ -161,8 +168,6 @@ MainWindow::MainWindow(QWidget *parent) :
     SetInputSettings();
     SetInputModeSettings();
     SetSensorSettings();
-
-    ui->comboData->setCurrentIndex(0);
 
     ui->plotData->addGraph();
      /* line color red for first graph. */
@@ -180,7 +185,7 @@ MainWindow::MainWindow(QWidget *parent) :
     ui->plotData->xAxis->setTickStep(2);
     ui->plotData->axisRect()->setupFullAxesBox();
 
-    ui->plotData->yAxis->setLabel("Attitude, deg");
+    //ui->plotData->yAxis->setLabel("Attitude, deg");
 
     /* make left and bottom axes transfer their ranges to right and top axes: */
     connect(ui->plotData->xAxis, SIGNAL(rangeChanged(QCPRange)),
@@ -198,7 +203,7 @@ MainWindow::MainWindow(QWidget *parent) :
  */
 MainWindow::~MainWindow()
 {
-    if (fConnected) {
+    if (m_fConnected) {
         SerialConnect();
     }
     delete ui;
@@ -209,14 +214,14 @@ MainWindow::~MainWindow()
  */
 void MainWindow::FillPortsInfo()
 {
-    m_SerialDeviceList->clear();
+    m_serialDeviceList->clear();
     if (QSerialPortInfo::availablePorts().count() == 0) {
-        m_SerialDeviceList->addItem(tr("Serial port not detected"), "None");
+        m_serialDeviceList->addItem(tr("Serial port not detected"), "None");
     } else {
         foreach (const QSerialPortInfo &info, QSerialPortInfo::availablePorts()) {
-            m_SerialDeviceList->addItem(info.description() + ' ' + '(' + info.portName() + ')', info.portName());
+            m_serialDeviceList->addItem(info.description() + ' ' + '(' + info.portName() + ')', info.portName());
         }
-        m_SerialDeviceList->setEnabled(true);
+        m_serialDeviceList->setEnabled(true);
         ui->actionConnect->setEnabled(true);
     }
 }
@@ -226,27 +231,26 @@ void MainWindow::FillPortsInfo()
  */
 void MainWindow::SerialConnect()
 {
-    if (fConnected) {
+    if (m_fConnected) {
         if (m_timer.isActive()) {
             m_timer.stop();
         }
-        m_thread.disconnect();
+        m_serialThread.disconnect();
         ui->actionConnect->setText(tr("Connect"));
         ui->actionConnect->setEnabled(true);
         ui->actionRead->setEnabled(false);
         ui->actionSet->setEnabled(false);
         ui->actionSave->setEnabled(false);
-        m_SerialDeviceList->setEnabled(true);
-        ui->statusBar->showMessage(tr("Disconnected from: %1").arg(m_SerialDeviceList->currentText()));
-        fConnected = false;
+        m_serialDeviceList->setEnabled(true);
+        ui->statusBar->showMessage(tr("Disconnected from: %1").arg(m_serialDeviceList->currentText()));
+        m_fConnected = false;
     } else {
-        m_thread.connect(m_SerialDeviceList->currentData().toString());
-        ui->actionConnect->setText(tr("Connecting..."));
+        m_serialThread.connect(m_serialDeviceList->currentData().toString());
         ui->actionConnect->setEnabled(false);
         ui->actionRead->setEnabled(false);
         ui->actionSet->setEnabled(false);
-        m_SerialDeviceList->setEnabled(false);
-        ui->statusBar->showMessage(tr("Connecting to: %1").arg(m_SerialDeviceList->currentText()));
+        m_serialDeviceList->setEnabled(false);
+        ui->statusBar->showMessage(tr("Connecting to: %1").arg(m_serialDeviceList->currentText()));
     }
 }
 
@@ -256,10 +260,10 @@ void MainWindow::SerialConnected()
     ui->actionConnect->setEnabled(true);
     ui->actionRead->setEnabled(true);
     ui->actionSet->setEnabled(true);
-    m_SerialDeviceList->setEnabled(false);
-    ui->statusBar->showMessage(tr("Connected to: %1").arg(m_SerialDeviceList->currentText()));
-    fConnected = true;
-    m_timer.start(100);
+    m_serialDeviceList->setEnabled(false);
+    ui->statusBar->showMessage(tr("Connected to: %1").arg(m_serialDeviceList->currentText()));
+    m_fConnected = true;
+    m_timer.start(20);
 }
 
 void MainWindow::SerialDataWrite(const TelemetryMessage &msg)
@@ -272,7 +276,7 @@ void MainWindow::SerialDataWrite(const TelemetryMessage &msg)
     log.open(QIODevice::Append);
     log.write(data);
 #endif
-    m_thread.write(data);
+    m_serialThread.write(data);
 }
 
 void MainWindow::SerialDataWrite(quint8 msgId, void *buf, int bufLen)
@@ -295,7 +299,7 @@ void MainWindow::SerialDataWrite(quint8 msgId, void *buf, int bufLen)
 
 void MainWindow::SerialError(const QString &s)
 {
-    if (fConnected) {
+    if (m_fConnected) {
         if (m_timer.isActive()) {
             m_timer.stop();
         }
@@ -305,8 +309,8 @@ void MainWindow::SerialError(const QString &s)
     ui->actionRead->setEnabled(false);
     ui->actionSet->setEnabled(false);
     ui->actionSave->setEnabled(false);
-    m_SerialDeviceList->setEnabled(true);
-    fConnected = false;
+    m_serialDeviceList->setEnabled(true);
+    m_fConnected = false;
     ui->statusBar->showMessage(s);
 }
 
@@ -379,69 +383,26 @@ void MainWindow::HandleApplySettings(bool warnDeadTimeChange)
 
     if (GetStabilizationSettings()) {
         /* Write stabilization settings; */
-        qDebug() << "Pitch P:" << PID[0].P << "I:" << PID[0].I << "D:" << PID[0].D;
-        qDebug() << "Roll  P:" << PID[1].P << "I:" << PID[1].I << "D:" << PID[1].D;
-        qDebug() << "Yaw   P:" << PID[2].P << "I:" << PID[2].I << "D:" << PID[2].D;
-        qDebug() << "Size:" << sizeof(PID);
-
         SerialDataWrite('S', (void*)PID, sizeof(PID));
     }
 
     if (GetOutputSettings()) {
         /* Write output settings; */
-        qDebug() << "Pitch Pwr:" << outSettings[0].power << "NPoles:" << outSettings[0].num_poles \
-                 << "Rev:" << ((outSettings[0].flags & PWM_OUT_REV_FLAG) > 0) << "THI:" << ((outSettings[0].flags & PWM_OUT_THI_FLAG) > 0) \
-                 << "Cmd:" << (outSettings[0].dt_cmd_id & PWM_OUT_CMD_ID_MASK) << "DT:" << (outSettings[0].dt_cmd_id >> 4);
-        qDebug() << "Roll  Pwr:" << outSettings[1].power << "NPoles:" << outSettings[1].num_poles \
-                 << "Rev:" << ((outSettings[1].flags & PWM_OUT_REV_FLAG) > 0) << "THI:" << ((outSettings[1].flags & PWM_OUT_THI_FLAG) > 0) \
-                 << "Cmd:" << (outSettings[1].dt_cmd_id & PWM_OUT_CMD_ID_MASK) << "DT:" << (outSettings[1].dt_cmd_id >> 4);
-        qDebug() << "Yaw   Pwr:" << outSettings[2].power << "NPoles:" << outSettings[2].num_poles \
-                 << "Rev:" << ((outSettings[2].flags & PWM_OUT_REV_FLAG) > 0) << "THI:" << ((outSettings[2].flags & PWM_OUT_THI_FLAG) > 0) \
-                 << "Cmd:" << (outSettings[2].dt_cmd_id & PWM_OUT_CMD_ID_MASK) << "DT:" << (outSettings[2].dt_cmd_id >> 4);
-        qDebug() << "Size:" << sizeof(outSettings);
-
         SerialDataWrite('O', (void*)outSettings, sizeof(outSettings));
     }
 
     if (GetInputSettings()) {
         /* Write input settings; */
-        qDebug() << "Pitch Ch#:" << inSettings[0].channel_id << "Min:" << inSettings[0].min_val \
-                 << "Mid:" << inSettings[0].mid_val << "Max:" << inSettings[0].max_val;
-        qDebug() << "Roll  Ch#:" << inSettings[1].channel_id << "Min:" << inSettings[1].min_val \
-                 << "Mid:" << inSettings[1].mid_val << "Max:" << inSettings[1].max_val;
-        qDebug() << "Yaw   Ch#:" << inSettings[2].channel_id << "Min:" << inSettings[2].min_val \
-                 << "Mid:" << inSettings[2].mid_val << "Max:" << inSettings[2].max_val;
-        qDebug() << "Size:" << sizeof(inSettings);
-
         SerialDataWrite('I', (void*)inSettings, sizeof(inSettings));
     }
 
     if (GetInputModeSettings()) {
         /* Write input mode settings; */
-        qDebug() << "Pitch Mode#:" << modeSettings[0].mode_id << "MinA:" << modeSettings[0].min_angle \
-                 << "MaxA:" << modeSettings[0].max_angle << "Speed:" << modeSettings[0].speed \
-                 << "Offset:" << modeSettings[0].offset;
-        qDebug() << "Roll  Mode#:" << modeSettings[1].mode_id << "MinA:" << modeSettings[1].min_angle \
-                 << "MaxA:" << modeSettings[1].max_angle << "Speed:" << modeSettings[1].speed \
-                 << "Offset:" << modeSettings[1].offset;
-        qDebug() << "Yaw   Mode#:" << modeSettings[2].mode_id << "MinA:" << modeSettings[2].min_angle \
-                 << "MaxA:" << modeSettings[2].max_angle << "Speed:" << modeSettings[2].speed \
-                 << "Offset:" << modeSettings[2].offset;
-        qDebug() << "Size:" << sizeof(modeSettings);
-
         SerialDataWrite('M', (void *)modeSettings, sizeof(modeSettings));
     }
 
     if (GetSensorSettings()) {
         /* Write sensor settings; */
-        qDebug() << "FRONT id:" << (sensorSettings[0] & SENSOR1_AXIS_ID_MASK)\
-                 << "Positive:" << ((sensorSettings[0] & SENSOR1_AXIS_DIR_POS) > 0);
-        qDebug() << "RIGHT id:" << (sensorSettings[1] & SENSOR1_AXIS_ID_MASK)\
-                 << "Positive:" << ((sensorSettings[1] & SENSOR1_AXIS_DIR_POS) > 0);
-        qDebug() << "TOP   id:" << (sensorSettings[2] & SENSOR1_AXIS_ID_MASK)\
-                 << "Positive:" << ((sensorSettings[2] & SENSOR1_AXIS_DIR_POS) > 0);
-        qDebug() << "Size:" << sizeof(sensorSettings);
-
         SerialDataWrite('D', (void *)sensorSettings, sizeof(sensorSettings));
     }
 
@@ -478,8 +439,9 @@ void MainWindow::HandleSaveSettings()
         );
         if (reply == QMessageBox::Yes) {
             SerialDataWrite('X', NULL, 0);
-
-            SerialConnect(); // Disconnect actually...
+            if (m_timer.isActive()) {
+                m_timer.stop();
+            }
         }
 
         // Don't bug the user until next change
@@ -498,8 +460,23 @@ void MainWindow::ProcessTimeout()
     m_msg.size = TELEMETRY_MSG_SIZE_BYTES;
     m_msg.res  = 0;
 
-    /* Get attitude data. */
-    m_msg.msg_id = 'r';
+    switch (ui->comboDataSource->currentIndex()) {
+    case 0:
+        /* Get attitude data. */
+        m_msg.msg_id = 'r';
+        break;
+    case 1:
+        /* Get accelerometer data. */
+        m_msg.msg_id = 'a';
+        break;
+    case 2:
+        /* Get gyroscope data. */
+        m_msg.msg_id = 'g';
+        break;
+    default:
+        /* Get attitude data. */
+        m_msg.msg_id = 'r';
+    }
     m_msg.crc    = GetCRC32Checksum(m_msg);
     SerialDataWrite(m_msg);
 
@@ -513,15 +490,47 @@ void MainWindow::ProcessTimeout()
     m_msg.crc    = GetCRC32Checksum(m_msg);
     SerialDataWrite(m_msg);
 
-    if (cnt % 25 == 0) {
+    if (cnt++ % 100 == 0) {
         /* Occasionally get i2c status. */
         m_msg.msg_id = 'e';
         m_msg.crc    = GetCRC32Checksum(m_msg);
         SerialDataWrite(m_msg);
     }
-    cnt++;
 }
 
+/**
+ * @brief MainWindow::UpdatePlotData
+ * @param rpy
+ */
+void MainWindow::UpdatePlotData(const float xyz[3])
+{
+    bool fEnlarge = false;
+    double key = QDateTime::currentDateTime().toMSecsSinceEpoch()/1000.0;
+
+    // add new data:
+    ui->plotData->graph(0)->addData(key, xyz[0]);
+    ui->plotData->graph(1)->addData(key, xyz[1]);
+    ui->plotData->graph(2)->addData(key, xyz[2]);
+    // remove data of lines that's outside visible range:
+    ui->plotData->graph(0)->removeDataBefore(key-8);
+    ui->plotData->graph(1)->removeDataBefore(key-8);
+    ui->plotData->graph(2)->removeDataBefore(key-8);
+    // rescale value (vertical) axis to fit the current data:
+    if (ui->plotData->graph(0)->visible()) {
+        ui->plotData->graph(0)->rescaleValueAxis();
+        fEnlarge = true;
+    }
+    if (ui->plotData->graph(1)->visible()) {
+        ui->plotData->graph(1)->rescaleValueAxis(fEnlarge);
+        fEnlarge = true;
+    }
+    if (ui->plotData->graph(2)->visible()) {
+        ui->plotData->graph(2)->rescaleValueAxis(fEnlarge);
+    }
+
+    ui->plotData->xAxis->setRange(key+0.25, 8, Qt::AlignRight);
+    ui->plotData->replot();
+}
 
 /**
  * @brief MainWindow::HandleDataXClicked
@@ -566,8 +575,6 @@ void MainWindow::ProcessSerialMessages(const TelemetryMessage &msg)
     float rpy[3];
     float *pfloatBuf;
     QQuaternion attiQ;
-    bool fEnlarge = false;
-    double key = QDateTime::currentDateTime().toMSecsSinceEpoch()/1000.0;
 
     switch (msg.msg_id) {
     case 'D': /* Response to new sensor settings. */
@@ -595,21 +602,25 @@ void MainWindow::ProcessSerialMessages(const TelemetryMessage &msg)
             qDebug() << "New PID values were not applied!";
         }
         break;
+    case 'X': /* Response to reboot command. */
+        if (strcmp(msg.data, TELEMETRY_RESP_OK) == 0) {
+            qDebug() << "Board entered shutdown sequence!";
+            SerialConnect(); // Disconnect actually...
+        }
     case 'a': /* Reads accelerometer data. */
-        qDebug() << "Acc data received.";
         if ((msg.size - TELEMETRY_MSG_SIZE_BYTES) == (sizeof(float) * 3)) {
             pfloatBuf = (float *)(msg.data);
-            qDebug() << pfloatBuf[0] << " " << pfloatBuf[1] << " " << pfloatBuf[2];
+            UpdatePlotData(pfloatBuf);
         } else {
             qDebug() << "Acc size mismatch:" << (msg.size - TELEMETRY_MSG_SIZE_BYTES) \
                      << "|" << (sizeof(float) * 3);
         }
         break;
     case 'b': /* Reads board status. */
-        if ((msg.size - TELEMETRY_MSG_SIZE_BYTES) == sizeof(boardStatus)) {
-            boardStatus = *(msg.data);
+        if ((msg.size - TELEMETRY_MSG_SIZE_BYTES) == sizeof(m_boardStatus)) {
+            m_boardStatus = *(msg.data);
             /* Check if sensor detected. */
-            if (boardStatus & 1) {
+            if (m_boardStatus & 1) {
                 ui->groupSensor1->setTitle("Sensor1 (MPU6050):");
                 ui->comboSensor1AxisTOP->setEnabled(true);
                 ui->comboSensor1AxisRIGHT->setEnabled(true);
@@ -623,17 +634,17 @@ void MainWindow::ProcessSerialMessages(const TelemetryMessage &msg)
                 ui->pushSensor1GyroCalibrate->setEnabled(false);
             }
             /* Check if EEPROM detected. */
-            if (boardStatus & 4) {
+            if (m_boardStatus & 4) {
                 ui->actionSave->setEnabled(true);
             } else {
                 ui->actionSave->setEnabled(false);
             }
-            qDebug() << "Board status (" << QString("%1").arg(boardStatus, 8, 16, QChar('0'))
-                     << "):\r\n  MPU6050 detected:" << ((boardStatus & 1) == 1) \
-                     << "\r\n  EEPROM detected:" << ((boardStatus & 4) == 4);
+            qDebug() << "Board status (" << QString("%1").arg(m_boardStatus, 8, 16, QChar('0'))
+                     << "):\r\n  MPU6050 detected:" << ((m_boardStatus & 1) == 1) \
+                     << "\r\n  EEPROM detected:" << ((m_boardStatus & 4) == 4);
         } else {
             qDebug() << "Board status size mismatch:" << (msg.size - TELEMETRY_MSG_SIZE_BYTES) \
-                     << "|" << sizeof(boardStatus);
+                     << "|" << sizeof(m_boardStatus);
         }
         break;
     case 'c': /* Response to Save Settings message. */
@@ -678,10 +689,9 @@ void MainWindow::ProcessSerialMessages(const TelemetryMessage &msg)
         }
         break;
     case 'g': /* Reads gyroscope data. */
-        qDebug() << "Gyro data received.";
         if ((msg.size -TELEMETRY_MSG_SIZE_BYTES) == (sizeof(float) * 3)) {
             pfloatBuf = (float *)(msg.data);
-            qDebug() << pfloatBuf[0] << " " << pfloatBuf[1] << " " << pfloatBuf[2];
+            UpdatePlotData(pfloatBuf);
         } else {
             qDebug() << "Gyro size mismatch:" << (msg.size - TELEMETRY_MSG_SIZE_BYTES) \
                      << "|" << (sizeof(float) * 3);
@@ -689,36 +699,36 @@ void MainWindow::ProcessSerialMessages(const TelemetryMessage &msg)
         break;
     case 'h': /* Reads motor offset. */
         if ((msg.size - TELEMETRY_MSG_SIZE_BYTES) == (sizeof(float) * 3)) {
-            memcpy((void *)motorOffset, (void *)msg.data, sizeof(float) * 3);
-            ui->labelOffsetPitch->setText(tr("%1°").arg(round(motorOffset[0]*RAD2DEG)));
-            ui->labelOffsetRoll->setText(tr("%1°").arg(round(motorOffset[1]*RAD2DEG)));
-            ui->labelOffsetYaw->setText(tr("%1°").arg(round(motorOffset[2]*RAD2DEG)));
+            memcpy((void *)m_motorOffset, (void *)msg.data, sizeof(float) * 3);
+            ui->labelOffsetPitch->setText(tr("%1°").arg(round(m_motorOffset[0]*RAD2DEG)));
+            ui->labelOffsetRoll->setText(tr("%1°").arg(round(m_motorOffset[1]*RAD2DEG)));
+            ui->labelOffsetYaw->setText(tr("%1°").arg(round(m_motorOffset[2]*RAD2DEG)));
         } else {
             qDebug() << "Motor offset size mismatch:" << (msg.size - TELEMETRY_MSG_SIZE_BYTES) \
                      << "|" << (sizeof(float) * 3);
         }
         break;
     case 'i': /* Reads input values. */
-        if ((msg.size - TELEMETRY_MSG_SIZE_BYTES) == sizeof(inputValues)) {
-            memcpy((void *)inputValues, (void *)msg.data, sizeof(inputValues));
+        if ((msg.size - TELEMETRY_MSG_SIZE_BYTES) == sizeof(m_inputValues)) {
+            memcpy((void *)m_inputValues, (void *)msg.data, sizeof(m_inputValues));
             if (inSettings[0].channel_id < 5) {
-                ui->labelInputPitch->setText(tr("%1").arg(inputValues[inSettings[0].channel_id]));
+                ui->labelInputPitch->setText(tr("%1").arg(m_inputValues[inSettings[0].channel_id]));
             } else {
                 ui->labelInputPitch->setText(tr("%1").arg(inSettings[0].min_val));
             }
             if (inSettings[1].channel_id < 5) {
-                ui->labelInputRoll->setText(tr("%1").arg(inputValues[inSettings[1].channel_id]));
+                ui->labelInputRoll->setText(tr("%1").arg(m_inputValues[inSettings[1].channel_id]));
             } else {
                 ui->labelInputRoll->setText(tr("%1").arg(inSettings[1].min_val));
             }
             if (inSettings[2].channel_id < 5) {
-                ui->labelInputYaw->setText(tr("%1").arg(inputValues[inSettings[2].channel_id]));
+                ui->labelInputYaw->setText(tr("%1").arg(m_inputValues[inSettings[2].channel_id]));
             } else {
                 ui->labelInputYaw->setText(tr("%1").arg(inSettings[2].min_val));
             }
         } else {
             qDebug() << "Input values size mismatch:" << (msg.size - TELEMETRY_MSG_SIZE_BYTES) \
-                     << "|" << sizeof(inputValues);
+                     << "|" << sizeof(m_inputValues);
         }
         break;
     case 'm': /* Reads input mode settings. */
@@ -756,6 +766,7 @@ void MainWindow::ProcessSerialMessages(const TelemetryMessage &msg)
             pfloatBuf = (float *)(msg.data);
 
             Quaternion2RPY(pfloatBuf, rpy);
+            UpdatePlotData(rpy);
 
             /*
              * Construct an attitude quaternion.
@@ -763,35 +774,7 @@ void MainWindow::ProcessSerialMessages(const TelemetryMessage &msg)
              * Adjust indexes and direction of rotations of IMU data to match
              * OpenGL coordinate system.
              */
-            attiQ = QQuaternion(pfloatBuf[0], pfloatBuf[1], pfloatBuf[3], -pfloatBuf[2]);
-
-            ui->plotData->graph(0)->setVisible(ui->checkDataX->isChecked());
-            ui->plotData->graph(1)->setVisible(ui->checkDataY->isChecked());
-            ui->plotData->graph(2)->setVisible(ui->checkDataZ->isChecked());
-            // add new data:
-            ui->plotData->graph(0)->addData(key, rpy[0] * RAD2DEG);
-            ui->plotData->graph(1)->addData(key, rpy[1] * RAD2DEG);
-            ui->plotData->graph(2)->addData(key, rpy[2] * RAD2DEG);
-            // remove data of lines that's outside visible range:
-            ui->plotData->graph(0)->removeDataBefore(key-8);
-            ui->plotData->graph(1)->removeDataBefore(key-8);
-            ui->plotData->graph(2)->removeDataBefore(key-8);
-            // rescale value (vertical) axis to fit the current data:
-            if (ui->plotData->graph(0)->visible()) {
-                ui->plotData->graph(0)->rescaleValueAxis();
-                fEnlarge = true;
-            }
-            if (ui->plotData->graph(1)->visible()) {
-                ui->plotData->graph(1)->rescaleValueAxis(fEnlarge);
-                fEnlarge = true;
-            }
-            if (ui->plotData->graph(2)->visible()) {
-                ui->plotData->graph(2)->rescaleValueAxis(fEnlarge);
-            }
-
-            ui->plotData->xAxis->setRange(key+0.25, 8, Qt::AlignRight);
-            ui->plotData->replot();
-
+            attiQ = QQuaternion(pfloatBuf[0], -pfloatBuf[1], -pfloatBuf[3], -pfloatBuf[2]);
             ui->widget->rotateBy(&attiQ);
         } else {
             qDebug() << "RPY size mismatch:" << (msg.size - TELEMETRY_MSG_SIZE_BYTES) \
@@ -809,7 +792,6 @@ void MainWindow::ProcessSerialMessages(const TelemetryMessage &msg)
         }
         break;
     case 'l': /* debug log. */
-    {
         if (msg.size > TELEMETRY_MSG_SIZE_BYTES) {
             char buf[sizeof(msg.data) + 1];
             memcpy(buf, msg.data, msg.size);
@@ -818,7 +800,6 @@ void MainWindow::ProcessSerialMessages(const TelemetryMessage &msg)
             ui->statusBar->showMessage(tr("Debug message received from board: '%1'").arg(buf));
         }
         break;
-    }
     default:
         qDebug() << "Unhandled message received!";
     }
@@ -884,6 +865,12 @@ bool MainWindow::GetStabilizationSettings()
         fUpdated = true;
     }
 
+    if (fUpdated) {
+        qDebug() << "Pitch P:" << PID[0].P << "I:" << PID[0].I << "D:" << PID[0].D;
+        qDebug() << "Roll  P:" << PID[1].P << "I:" << PID[1].I << "D:" << PID[1].D;
+        qDebug() << "Yaw   P:" << PID[2].P << "I:" << PID[2].I << "D:" << PID[2].D;
+        qDebug() << "Size:" << sizeof(PID);
+    }
     return fUpdated;
 }
 
@@ -1021,6 +1008,19 @@ bool MainWindow::GetOutputSettings()
         m_deadtimeChanged = true;
     }
     outSettings[2].dt_cmd_id = temp | temp2;
+
+    if (fUpdated) {
+        qDebug() << "Pitch Pwr:" << outSettings[0].power << "NPoles:" << outSettings[0].num_poles \
+                 << "Rev:" << ((outSettings[0].flags & PWM_OUT_REV_FLAG) > 0) << "THI:" << ((outSettings[0].flags & PWM_OUT_THI_FLAG) > 0) \
+                 << "Cmd:" << (outSettings[0].dt_cmd_id & PWM_OUT_CMD_ID_MASK) << "DT:" << (outSettings[0].dt_cmd_id >> 4);
+        qDebug() << "Roll  Pwr:" << outSettings[1].power << "NPoles:" << outSettings[1].num_poles \
+                 << "Rev:" << ((outSettings[1].flags & PWM_OUT_REV_FLAG) > 0) << "THI:" << ((outSettings[1].flags & PWM_OUT_THI_FLAG) > 0) \
+                 << "Cmd:" << (outSettings[1].dt_cmd_id & PWM_OUT_CMD_ID_MASK) << "DT:" << (outSettings[1].dt_cmd_id >> 4);
+        qDebug() << "Yaw   Pwr:" << outSettings[2].power << "NPoles:" << outSettings[2].num_poles \
+                 << "Rev:" << ((outSettings[2].flags & PWM_OUT_REV_FLAG) > 0) << "THI:" << ((outSettings[2].flags & PWM_OUT_THI_FLAG) > 0) \
+                 << "Cmd:" << (outSettings[2].dt_cmd_id & PWM_OUT_CMD_ID_MASK) << "DT:" << (outSettings[2].dt_cmd_id >> 4);
+        qDebug() << "Size:" << sizeof(outSettings);
+    }
     return fUpdated;
 }
 
@@ -1127,6 +1127,16 @@ bool MainWindow::GetInputSettings()
     if (temp != inSettings[2].max_val) {
         inSettings[2].max_val = temp;
         fUpdated = true;
+    }
+
+    if (fUpdated) {
+        qDebug() << "Pitch Ch#:" << inSettings[0].channel_id << "Min:" << inSettings[0].min_val \
+                 << "Mid:" << inSettings[0].mid_val << "Max:" << inSettings[0].max_val;
+        qDebug() << "Roll  Ch#:" << inSettings[1].channel_id << "Min:" << inSettings[1].min_val \
+                 << "Mid:" << inSettings[1].mid_val << "Max:" << inSettings[1].max_val;
+        qDebug() << "Yaw   Ch#:" << inSettings[2].channel_id << "Min:" << inSettings[2].min_val \
+                 << "Mid:" << inSettings[2].mid_val << "Max:" << inSettings[2].max_val;
+        qDebug() << "Size:" << sizeof(inSettings);
     }
     return fUpdated;
 }
@@ -1244,6 +1254,19 @@ bool MainWindow::GetInputModeSettings()
         modeSettings[2].offset = temp;
         fUpdated = true;
     }
+
+    if (fUpdated) {
+        qDebug() << "Pitch Mode#:" << modeSettings[0].mode_id << "MinA:" << modeSettings[0].min_angle \
+                 << "MaxA:" << modeSettings[0].max_angle << "Speed:" << modeSettings[0].speed \
+                 << "Offset:" << modeSettings[0].offset;
+        qDebug() << "Roll  Mode#:" << modeSettings[1].mode_id << "MinA:" << modeSettings[1].min_angle \
+                 << "MaxA:" << modeSettings[1].max_angle << "Speed:" << modeSettings[1].speed \
+                 << "Offset:" << modeSettings[1].offset;
+        qDebug() << "Yaw   Mode#:" << modeSettings[2].mode_id << "MinA:" << modeSettings[2].min_angle \
+                 << "MaxA:" << modeSettings[2].max_angle << "Speed:" << modeSettings[2].speed \
+                 << "Offset:" << modeSettings[2].offset;
+        qDebug() << "Size:" << sizeof(modeSettings);
+    }
     return fUpdated;
 }
 
@@ -1309,7 +1332,7 @@ bool MainWindow::GetSensorSettings()
             switch (sensorAxes[i]) {
             case 0: // +X;
                 // Axis ID = 0;
-                // Axis dir = negative;
+                sensorSettings[i] |= SENSOR1_AXIS_DIR_POS;
                 break;
             case 1: // +Y;
                 sensorSettings[i] |= 1;
@@ -1317,11 +1340,11 @@ bool MainWindow::GetSensorSettings()
                 break;
             case 2: // +Z;
                 sensorSettings[i] |= 2;
-                // Axis dir = negative;
+                sensorSettings[i] |= SENSOR1_AXIS_DIR_POS;
                 break;
             case 3: // -X;
                 // Axis ID = 0;
-                sensorSettings[i] |= SENSOR1_AXIS_DIR_POS;
+                // Axis dir = negative;
                 break;
             case 4: // -Y;
                 sensorSettings[i] |= 1;
@@ -1329,12 +1352,21 @@ bool MainWindow::GetSensorSettings()
                 break;
             case 5: // -Z;
                 sensorSettings[i] |= 2;
-                sensorSettings[i] |= SENSOR1_AXIS_DIR_POS;
+                // Axis dir = negative;
                 break;
             }
         }
     }
 
+    if (fUpdated) {
+        qDebug() << "RIGHT id:" << (sensorSettings[0] & SENSOR1_AXIS_ID_MASK)\
+                 << "Positive:" << ((sensorSettings[0] & SENSOR1_AXIS_DIR_POS) > 0);
+        qDebug() << "FRONT id:" << (sensorSettings[1] & SENSOR1_AXIS_ID_MASK)\
+                 << "Positive:" << ((sensorSettings[1] & SENSOR1_AXIS_DIR_POS) > 0);
+        qDebug() << "TOP   id:" << (sensorSettings[2] & SENSOR1_AXIS_ID_MASK)\
+                 << "Positive:" << ((sensorSettings[2] & SENSOR1_AXIS_DIR_POS) > 0);
+        qDebug() << "Size:" << sizeof(sensorSettings);
+    }
     return fUpdated;
 }
 
@@ -1348,9 +1380,9 @@ bool MainWindow::SetSensorSettings()
         switch (sensorSettings[i] & SENSOR1_AXIS_ID_MASK) {
         case 0: // X;
             if (sensorSettings[i] & SENSOR1_AXIS_DIR_POS) {
-                sensorAxes[i] = 3;
-            } else {
                 sensorAxes[i] = 0;
+            } else {
+                sensorAxes[i] = 3;
             }
             break;
         case 1: // Y;
@@ -1362,9 +1394,9 @@ bool MainWindow::SetSensorSettings()
             break;
         case 2: // Z;
             if (sensorSettings[i] & SENSOR1_AXIS_DIR_POS) {
-                sensorAxes[i] = 5;
-            } else {
                 sensorAxes[i] = 2;
+            } else {
+                sensorAxes[i] = 5;
             }
             break;
         }
