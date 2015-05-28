@@ -224,10 +224,15 @@ void attitudeUpdate(PIMUStruct pIMU) {
   if ((mag > 0.0724f) && (mag < 0.1724f)) {
     float v2[3];
 
-    // Compute estimated direction of gravity halved.
-    v2[0] =  (pIMU->qIMU[0]*pIMU->qIMU[2] - pIMU->qIMU[1]*pIMU->qIMU[3]);
-    v2[1] = -(pIMU->qIMU[2]*pIMU->qIMU[3] + pIMU->qIMU[0]*pIMU->qIMU[1]);
-    v2[2] =  (pIMU->qIMU[1]*pIMU->qIMU[1] + pIMU->qIMU[2]*pIMU->qIMU[2]) - 0.5f;
+    /* Compute estimated direction of gravity halved.
+     *
+     * Rotated gravity vector v2 is calculated by multiplying gravity
+     * vector v={0,0,1} by conjugate (q`) of attitude quaternion (q) (v2=q`vq),
+     * because MPU6050 senses gravity in opposite direction.
+     */
+    v2[0] = (pIMU->qIMU[1]*pIMU->qIMU[3] - pIMU->qIMU[0]*pIMU->qIMU[2]);
+    v2[1] = (pIMU->qIMU[2]*pIMU->qIMU[3] + pIMU->qIMU[0]*pIMU->qIMU[1]);
+    v2[2] = (pIMU->qIMU[0]*pIMU->qIMU[0] + pIMU->qIMU[3]*pIMU->qIMU[3]) - 0.5f;
 
     // Apply smoothing to accel values, to reduce vibration noise before main calculations.
     accelFilterApply(pIMU->accelData, pIMU->accelFiltered);
