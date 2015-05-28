@@ -31,15 +31,62 @@
 /* C libraries: */
 #include <string.h>
 
-#define MPU6050_RX_BUF_SIZE   0x0E
-#define MPU6050_TX_BUF_SIZE   0x05
+#define MPU6050_I2C_ADDR_A0_LOW   0x68
+#define MPU6050_I2C_ADDR_A0_HIGH  0x69
+
+/* MPU6050 useful registers */
+#define MPU6050_SMPLRT_DIV        0x19
+#define MPU6050_CONFIG            0x1A
+#define MPU6050_GYRO_CONFIG       0x1B
+#define MPU6050_ACCEL_CONFIG      0x1C
+#define MPU6050_ACCEL_XOUT_H      0x3B
+#define MPU6050_ACCEL_XOUT_L      0x3C
+#define MPU6050_ACCEL_YOUT_H      0x3D
+#define MPU6050_ACCEL_YOUT_L      0x3E
+#define MPU6050_ACCEL_ZOUT_H      0x3F
+#define MPU6050_ACCEL_ZOUT_L      0x40
+#define MPU6050_TEMP_OUT_H        0x41
+#define MPU6050_TEMP_OUT_L        0x42
+#define MPU6050_GYRO_XOUT_H       0x43
+#define MPU6050_GYRO_XOUT_L       0x44
+#define MPU6050_GYRO_YOUT_H       0x45
+#define MPU6050_GYRO_YOUT_L       0x46
+#define MPU6050_GYRO_ZOUT_H       0x47
+#define MPU6050_GYRO_ZOUT_L       0x48
+#define MPU6050_PWR_MGMT_1        0x6B
+
+/* Sensor scales */
+//#define MPU6050_GYRO_SCALE        (1.0f / 131.0f) //  250 deg/s
+//#define MPU6050_GYRO_SCALE        (1.0f /  65.5f) //  500 deg/s
+#define MPU6050_GYRO_SCALE        (1.0f /  32.8f) // 1000 deg/s
+//#define MPU6050_GYRO_SCALE        (1.0f /  16.4f) // 2000 deg/s
+
+#define GRAV                      9.81
+//#define MPU6050_ACCEL_SCALE       (GRAV / 16384.0f) //  2G
+//#define MPU6050_ACCEL_SCALE       (GRAV /  8192.0f) //  4G
+#define MPU6050_ACCEL_SCALE       (GRAV /  4096.0f) //  8G
+//#define MPU6050_ACCEL_SCALE       (GRAV /  2048.0f) // 16G
+
+#define MPU6050_RX_BUF_SIZE       0x0E
+#define MPU6050_TX_BUF_SIZE       0x05
+
+#define IMU_AXIS_DIR_POS          0x08
+#define IMU_AXIS_ID_MASK          0x07
+
+#define IMU1_AXIS_DIR_POS         0x08
+#define IMU1_AXIS_ID_MASK         0x07
+#define IMU1_CONF_MASK            0x0F
+
+#define IMU2_AXIS_DIR_POS         0x80
+#define IMU2_AXIS_ID_MASK         0x70
+#define IMU2_CONF_MASK            0xF0
 
 /* I2C read transaction time-out in milliseconds. */
 #define MPU6050_READ_TIMEOUT_MS   0x01
 /* I2C write transaction time-out in milliseconds. */
 #define MPU6050_WRITE_TIMEOUT_MS  0x01
 
-#define CALIBRATION_COUNTER_MAX   5000
+#define CALIBRATION_COUNTER_MAX   2000
 
 /**
  * Global variables
@@ -51,11 +98,11 @@
  *       nIx - n-th bit of axis ID of the sensor x.
  */
 uint8_t g_sensorSettings[3] = {
-  0x00 |
-  IMU1_AXIS_DIR_POS |
-  IMU2_AXIS_DIR_POS, /* Pitch (X) */
+  0x00,              /* Pitch (X) */
   0x11,              /* Roll  (Y) */
-  0x22,              /* Yaw   (Z) */
+  0x22 |
+  IMU1_AXIS_DIR_POS |
+  IMU2_AXIS_DIR_POS  /* Yaw   (Z) */
 };
 
 /* IMU data structure. */
@@ -116,15 +163,15 @@ uint8_t imuCalibrate(PIMUStruct pIMU, uint8_t fCalibrateAcc) {
     if (pIMU->clbrCounter == 0) {
       /* Reset accelerometer bias. */
       pIMU->accelBias[0] = pIMU->accelData[0];
-      pIMU->accelBias[1] = pIMU->accelData[0];
-      pIMU->accelBias[2] = pIMU->accelData[0] + GRAV;
+      pIMU->accelBias[1] = pIMU->accelData[1];
+      pIMU->accelBias[2] = pIMU->accelData[2] - GRAV;
       pIMU->clbrCounter++;
       return 0;
     } else if (pIMU->clbrCounter < CALIBRATION_COUNTER_MAX) {
       /* Accumulate accelerometer bias. */
       pIMU->accelBias[0] += pIMU->accelData[0];
       pIMU->accelBias[1] += pIMU->accelData[1];
-      pIMU->accelBias[2] += pIMU->accelData[2] + GRAV;
+      pIMU->accelBias[2] += pIMU->accelData[2] - GRAV;
       pIMU->clbrCounter++;
       return 0;
     } else {
@@ -138,8 +185,8 @@ uint8_t imuCalibrate(PIMUStruct pIMU, uint8_t fCalibrateAcc) {
     if (pIMU->clbrCounter == 0) {
       /* Reset gyroscope bias. */
       pIMU->gyroBias[0] = pIMU->gyroData[0];
-      pIMU->gyroBias[1] = pIMU->gyroData[0];
-      pIMU->gyroBias[2] = pIMU->gyroData[0];
+      pIMU->gyroBias[1] = pIMU->gyroData[1];
+      pIMU->gyroBias[2] = pIMU->gyroData[2];
       pIMU->clbrCounter++;
       return 0;
     } else if (pIMU->clbrCounter < CALIBRATION_COUNTER_MAX) {
@@ -244,6 +291,7 @@ uint8_t mpu6050Init(uint8_t addr) {
 uint8_t mpu6050GetNewData(PIMUStruct pIMU) {
   msg_t status = RDY_OK;
   uint8_t id;
+  int16_t mpu6050Data[6];
 
   /* Set the start register address for bulk data transfer. */
   mpu6050TXData[0] = MPU6050_ACCEL_XOUT_H;
@@ -261,31 +309,41 @@ uint8_t mpu6050GetNewData(PIMUStruct pIMU) {
     return 0;
   }
 
+  mpu6050Data[0] = (int16_t)((mpu6050RXData[ 0]<<8) | mpu6050RXData[ 1]); /* Accel X */
+  mpu6050Data[1] = (int16_t)((mpu6050RXData[ 2]<<8) | mpu6050RXData[ 3]); /* Accel Y */
+  mpu6050Data[2] = (int16_t)((mpu6050RXData[ 4]<<8) | mpu6050RXData[ 5]); /* Accel Z */
+  mpu6050Data[3] = (int16_t)((mpu6050RXData[ 8]<<8) | mpu6050RXData[ 9]); /* Gyro X  */
+  mpu6050Data[4] = (int16_t)((mpu6050RXData[10]<<8) | mpu6050RXData[11]); /* Gyro Y  */
+  mpu6050Data[5] = (int16_t)((mpu6050RXData[12]<<8) | mpu6050RXData[13]); /* Gyro Z  */
+
+  /* Pitch: */
   id = pIMU->axes_conf[0] & IMU_AXIS_ID_MASK;
   if (pIMU->axes_conf[0] & IMU_AXIS_DIR_POS) {
-    pIMU->accelData[id] = ((int16_t)((mpu6050RXData[0]<<8) | mpu6050RXData[1]))*MPU6050_ACCEL_SCALE; /* Accel X */
-    pIMU->gyroData[id]  = ((int16_t)((mpu6050RXData[8]<<8) | mpu6050RXData[9]))*MPU6050_GYRO_SCALE;  /* Gyro X  */
+    pIMU->accelData[0] = mpu6050Data[id + 0]*MPU6050_ACCEL_SCALE;
+    pIMU->gyroData[0]  = mpu6050Data[id + 3]*MPU6050_GYRO_SCALE;
   } else {
-    pIMU->accelData[id] = (-1 - (int16_t)((mpu6050RXData[0]<<8) | mpu6050RXData[1]))*MPU6050_ACCEL_SCALE; /* Accel X */
-    pIMU->gyroData[id]  = (-1 - (int16_t)((mpu6050RXData[8]<<8) | mpu6050RXData[9]))*MPU6050_GYRO_SCALE;  /* Gyro X  */
+    pIMU->accelData[0] = (-1 - mpu6050Data[id + 0])*MPU6050_ACCEL_SCALE;
+    pIMU->gyroData[0]  = (-1 - mpu6050Data[id + 3])*MPU6050_GYRO_SCALE;
   }
 
+  /* Roll: */
   id = pIMU->axes_conf[1] & IMU_AXIS_ID_MASK;
   if (pIMU->axes_conf[1] & IMU_AXIS_DIR_POS) {
-    pIMU->accelData[id] = ((int16_t)((mpu6050RXData[ 2]<<8) | mpu6050RXData[ 3]))*MPU6050_ACCEL_SCALE; /* Accel Y */
-    pIMU->gyroData[id]  = ((int16_t)((mpu6050RXData[10]<<8) | mpu6050RXData[11]))*MPU6050_GYRO_SCALE;  /* Gyro Y  */
+    pIMU->accelData[1] = mpu6050Data[id + 0]*MPU6050_ACCEL_SCALE;
+    pIMU->gyroData[1]  = mpu6050Data[id + 3]*MPU6050_GYRO_SCALE;
   } else {
-    pIMU->accelData[id] = (-1 - (int16_t)((mpu6050RXData[ 2]<<8) | mpu6050RXData[ 3]))*MPU6050_ACCEL_SCALE; /* Accel Y */
-    pIMU->gyroData[id]  = (-1 - (int16_t)((mpu6050RXData[10]<<8) | mpu6050RXData[11]))*MPU6050_GYRO_SCALE;  /* Gyro Y  */
+    pIMU->accelData[1] = (-1 - mpu6050Data[id + 0])*MPU6050_ACCEL_SCALE;
+    pIMU->gyroData[1]  = (-1 - mpu6050Data[id + 3])*MPU6050_GYRO_SCALE;
   }
 
+  /* Yaw: */
   id = pIMU->axes_conf[2] & IMU_AXIS_ID_MASK;
   if (pIMU->axes_conf[2] & IMU_AXIS_DIR_POS) {
-    pIMU->accelData[id] = ((int16_t)((mpu6050RXData[ 4]<<8) | mpu6050RXData[ 5]))*MPU6050_ACCEL_SCALE; /* Accel Z */
-    pIMU->gyroData[id]  = ((int16_t)((mpu6050RXData[12]<<8) | mpu6050RXData[13]))*MPU6050_GYRO_SCALE;  /* Gyro Z  */
+    pIMU->accelData[2] = mpu6050Data[id + 0]*MPU6050_ACCEL_SCALE;
+    pIMU->gyroData[2]  = mpu6050Data[id + 3]*MPU6050_GYRO_SCALE;
   } else {
-    pIMU->accelData[id] = (-1 - (int16_t)((mpu6050RXData[ 4]<<8) | mpu6050RXData[ 5]))*MPU6050_ACCEL_SCALE; /* Accel Z */
-    pIMU->gyroData[id]  = (-1 - (int16_t)((mpu6050RXData[12]<<8) | mpu6050RXData[13]))*MPU6050_GYRO_SCALE;  /* Gyro Z  */
+    pIMU->accelData[2] = (-1 - mpu6050Data[id + 0])*MPU6050_ACCEL_SCALE;
+    pIMU->gyroData[2]  = (-1 - mpu6050Data[id + 3])*MPU6050_GYRO_SCALE;
   }
 
   return 1;
