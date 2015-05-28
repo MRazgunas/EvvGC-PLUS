@@ -65,10 +65,10 @@ PROJECT = evvgc_plus
 # Imported source files and paths
 SRCDIR = ..
 include $(SRCDIR)/boards/EVVGC_V1.X/board.mk
-include $(SRCDIR)/chibios_2.6.7/hal/platforms/STM32F1xx/platform.mk
-include $(SRCDIR)/chibios_2.6.7/hal/hal.mk
-include $(SRCDIR)/chibios_2.6.7/ports/GCC/ARMCMx/STM32F1xx/port.mk
-include $(SRCDIR)/chibios_2.6.7/kernel/kernel.mk
+include $(SRCDIR)/chibios_2.6.x/hal/platforms/STM32F1xx/platform.mk
+include $(SRCDIR)/chibios_2.6.x/hal/hal.mk
+include $(SRCDIR)/chibios_2.6.x/ports/GCC/ARMCMx/STM32F1xx/port.mk
+include $(SRCDIR)/chibios_2.6.x/kernel/kernel.mk
 
 # Define linker script file here
 ifeq ($(USE_USB_BL),yes)
@@ -213,7 +213,7 @@ ULIBS = -lm
 # End of user defines
 ##############################################################################
 
-RULESPATH = $(SRCDIR)/chibios_2.6.7/ports/GCC/ARMCMx
+RULESPATH = $(SRCDIR)/chibios_2.6.x/ports/GCC/ARMCMx
 include $(RULESPATH)/rules.mk
 
 program: $(BUILDDIR)/$(PROJECT).bin
