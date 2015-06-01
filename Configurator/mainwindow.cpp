@@ -500,7 +500,7 @@ void MainWindow::ProcessTimeout()
 
 /**
  * @brief MainWindow::UpdatePlotData
- * @param rpy
+ * @param xyz
  */
 void MainWindow::UpdatePlotData(const float xyz[3])
 {
@@ -798,6 +798,15 @@ void MainWindow::ProcessSerialMessages(const TelemetryMessage &msg)
             buf[msg.size] = '\0';
             qDebug() << "Debug log received:" << buf << "\r\n";
             ui->statusBar->showMessage(tr("Debug message received from board: '%1'").arg(buf));
+        }
+        break;
+    case '[': /* Response to Calibrate gyroscope message. */
+    case ']': /* Response to Calibrate accelerometer message. */
+        if (strcmp(msg.data, TELEMETRY_RESP_FAIL) == 0) {
+            qDebug() << "Calibration was not started!";
+            QMessageBox::critical(this, tr("Serial Error"), "Calibration failed!");
+        } else if (strcmp(msg.data, TELEMETRY_RESP_OK) == 0) {
+            qDebug() << "Calibration was started successfuly!";
         }
         break;
     default:

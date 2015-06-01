@@ -31,6 +31,8 @@
 #define MPU6050_LOW_DETECTED    0x00000001
 #define EEPROM_24C02_DETECTED   0x00000004
 
+#define WARM_UP_COUNTER_MAX     0x00000BB8
+
 /**
  * Global variables
  */
@@ -84,9 +86,20 @@ static msg_t BlinkerThread(void *arg) {
 static WORKING_AREA(waPollMPU6050Thread, 128);
 static msg_t PollMPU6050Thread(void *arg) {
   systime_t time;
-
+  uint32_t warmUp = 0;
   (void)arg;
+
   time = chTimeNow();
+  do {
+    if (!mpu6050GetNewData(&g_IMU1)) {
+      /* Restart I2C2 bus in case of an error. */
+      i2cStop(&I2CD2);
+      i2cStart(&I2CD2, &i2cfg_d2);
+    }
+    /* Wait until the next 1.5 milliseconds passes. */
+    chThdSleepUntil(time += US2ST(1500));
+  } while (warmUp++ < WARM_UP_COUNTER_MAX);
+
   while (!chThdShouldTerminate()) {
     if (mpu6050GetNewData(&g_IMU1)) {
       chBSemSignal(&bsemIMU1DataReady);
