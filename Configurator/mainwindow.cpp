@@ -1,4 +1,4 @@
-#include "mainwindow.h"
+                     #include "mainwindow.h"
 #include "ui_mainwindow.h"
 
 #include <QMessageBox>
@@ -77,6 +77,11 @@ static quint8 sensorAxes[3] = {
     3, /* Right axis -X; */
     4, /* Front axis -Y; */
     2  /* Top axis   +Z; */
+};
+
+static quint16 CFSettings[2] = {
+    300, /* Kp; */
+    100  /* Ki; */
 };
 
 /* Axes mapping matrix:
@@ -168,6 +173,7 @@ MainWindow::MainWindow(QWidget *parent) :
     SetInputSettings();
     SetInputModeSettings();
     SetSensorSettings();
+    SetCFSettings();
 
     ui->plotData->addGraph();
      /* line color red for first graph. */
@@ -371,6 +377,11 @@ void MainWindow::HandleReadSettings()
     m_msg.msg_id = 'd';
     m_msg.crc    = GetCRC32Checksum(m_msg);
     SerialDataWrite(m_msg);
+
+    /* Get CFilter settings. */
+    m_msg.msg_id = 'f';
+    m_msg.crc    = GetCRC32Checksum(m_msg);
+    SerialDataWrite(m_msg);
 }
 
 /**
@@ -404,6 +415,11 @@ void MainWindow::HandleApplySettings(bool warnDeadTimeChange)
     if (GetSensorSettings()) {
         /* Write sensor settings; */
         SerialDataWrite('D', (void *)sensorSettings, sizeof(sensorSettings));
+    }
+
+    if (GetCFSettings()) {
+        /* Write complementary filter settings; */
+        SerialDataWrite('F', (void *)CFSettings, sizeof(CFSettings));
     }
 
     if (m_deadtimeChanged && warnDeadTimeChange) {
@@ -582,6 +598,11 @@ void MainWindow::ProcessSerialMessages(const TelemetryMessage &msg)
             qDebug() << "New sensor settings were not applied!";
         }
         break;
+    case 'F': /* Response to new complementary filter settings. */
+        if (strcmp(msg.data, TELEMETRY_RESP_FAIL) == 0) {
+            qDebug() << "New complementary filter settings were not applied!";
+        }
+        break;
     case 'I': /* Response to new mixed input settings. */
         if (strcmp(msg.data, TELEMETRY_RESP_FAIL) == 0) {
             qDebug() << "New mixed input settings were not applied!";
@@ -688,8 +709,18 @@ void MainWindow::ProcessSerialMessages(const TelemetryMessage &msg)
                      << "|" << sizeof(i2cErrorInfo);
         }
         break;
+    case 'f':
+        qDebug() << "Complementary filter settings received.";
+        if ((msg.size - TELEMETRY_MSG_SIZE_BYTES) == sizeof(CFSettings)) {
+            memcpy((void *)CFSettings, (void *)msg.data, sizeof(CFSettings));
+            SetCFSettings();
+        } else {
+            qDebug() << "Complementary filter settings size mismatch:" << (msg.size - TELEMETRY_MSG_SIZE_BYTES) \
+                     << "|" << sizeof(CFSettings);
+        }
+        break;
     case 'g': /* Reads gyroscope data. */
-        if ((msg.size -TELEMETRY_MSG_SIZE_BYTES) == (sizeof(float) * 3)) {
+        if ((msg.size - TELEMETRY_MSG_SIZE_BYTES) == (sizeof(float) * 3)) {
             pfloatBuf = (float *)(msg.data);
             UpdatePlotData(pfloatBuf);
         } else {
@@ -1412,5 +1443,43 @@ bool MainWindow::SetSensorSettings()
     }
     ui->comboSensor1AxisTOP->setCurrentIndex(sensorAxes[2]);
     ui->comboSensor1AxisRIGHT->setCurrentIndex(sensorAxes[0]);
+    return true;
+}
+
+/**
+ * @brief MainWindow::GetCFSettings
+ * @return
+ */
+bool MainWindow::GetCFSettings()
+{
+    bool fUpdated = false;
+    qint16 temp;
+
+    temp = ui->spinCFKp->value();
+    if (temp != CFSettings[0]) {
+        CFSettings[0] = temp;
+        fUpdated = true;
+    }
+    temp = ui->spinCFKi->value();
+    if (temp != CFSettings[1]) {
+        CFSettings[1] = temp;
+        fUpdated = true;
+    }
+    if (fUpdated) {
+        qDebug() << "Acc 2Kp:" << CFSettings[0];
+        qDebug() << "Acc 2Ki:" << CFSettings[1];
+        qDebug() << "Size:" << sizeof(CFSettings);
+    }
+    return fUpdated;
+}
+
+/**
+ * @brief MainWindow::SetCFSettings
+ * @return
+ */
+bool MainWindow::SetCFSettings()
+{
+    ui->spinCFKp->setValue(CFSettings[0]);
+    ui->spinCFKi->setValue(CFSettings[1]);
     return true;
 }

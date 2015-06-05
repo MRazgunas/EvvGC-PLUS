@@ -34,6 +34,7 @@ typedef struct tagInputModeStruct {
 extern float g_motorOffset[3];
 extern PIDSettings g_pidSettings[3];
 extern InputModeStruct g_modeSettings[3];
+extern uint16_t g_cfSettings[2];
 
 #ifdef __cplusplus
 extern "C" {
@@ -44,6 +45,7 @@ extern "C" {
   void actuatorsUpdate(void);
   void pidSettingsUpdate(const PPIDSettings pNewSettings);
   void inputModeSettingsUpdate(const PInputModeStruct pNewSettings);
+  void cfSettingsUpdate(const uint16_t *pNewSettings);
 #ifdef __cplusplus
 }
 #endif

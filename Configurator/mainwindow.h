@@ -119,6 +119,8 @@ private:
     bool SetInputModeSettings();
     bool GetSensorSettings();
     bool SetSensorSettings();
+    bool GetCFSettings();
+    bool SetCFSettings();
     quint32 GetCRC32Checksum(const TelemetryMessage &msg);
     void SerialDataWrite(const TelemetryMessage &msg);
     void SerialDataWrite(quint8 msgId, void *buf, int bufLen);

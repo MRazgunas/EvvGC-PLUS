@@ -229,11 +229,11 @@ int main(void) {
 
   /* Normal main() thread activity. */
   while (g_runMain) {
-    g_chnp = serusbcfg.usbp->state == USB_ACTIVE ? (BaseChannel *)&SDU1 : (BaseChannel *)&SD4;
-    telemetryReadSerialData();
     if ((g_boardStatus & EEPROM_24C02_DETECTED) && eepromIsDataLeft()) {
       eepromContinueSaving();
     }
+    g_chnp = serusbcfg.usbp->state == USB_ACTIVE ? (BaseChannel *)&SDU1 : (BaseChannel *)&SD4;
+    telemetryReadSerialData();
     chThdSleepMilliseconds(TELEMETRY_SLEEP_MS);
   }
 

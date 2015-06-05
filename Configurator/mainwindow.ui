@@ -1776,122 +1776,42 @@
          </spacer>
         </item>
         <item row="0" column="1">
-         <widget class="QGroupBox" name="groupSensor2">
+         <widget class="QGroupBox" name="groupCFilter">
           <property name="title">
-           <string>Sensor2 (none):</string>
+           <string>Complementary Filter:</string>
           </property>
-          <layout class="QGridLayout" name="gridLayout_7">
-           <item row="0" column="1">
-            <widget class="QComboBox" name="comboSensor2AxisTOP">
-             <property name="enabled">
-              <bool>false</bool>
+          <layout class="QFormLayout" name="formLayout">
+           <item row="0" column="0">
+            <widget class="QLabel" name="labelKp">
+             <property name="text">
+              <string>Kp:</string>
              </property>
-             <item>
-              <property name="text">
-               <string>+X</string>
-              </property>
-             </item>
-             <item>
-              <property name="text">
-               <string>+Y</string>
-              </property>
-             </item>
-             <item>
-              <property name="text">
-               <string>+Z</string>
-              </property>
-             </item>
-             <item>
-              <property name="text">
-               <string>-X</string>
-              </property>
-             </item>
-             <item>
-              <property name="text">
-               <string>-Y</string>
-              </property>
-             </item>
-             <item>
-              <property name="text">
-               <string>-Z</string>
-              </property>
-             </item>
+             <property name="textFormat">
+              <enum>Qt::PlainText</enum>
+             </property>
             </widget>
            </item>
            <item row="1" column="0">
-            <widget class="QLabel" name="labelSensor2AxisRight">
+            <widget class="QLabel" name="labelKi">
              <property name="text">
-              <string>Axis RIGHT</string>
+              <string>Ki:</string>
              </property>
              <property name="textFormat">
               <enum>Qt::PlainText</enum>
              </property>
             </widget>
            </item>
-           <item row="0" column="0">
-            <widget class="QLabel" name="labelSensor2AxisTop">
-             <property name="text">
-              <string>Axis TOP</string>
-             </property>
-             <property name="textFormat">
-              <enum>Qt::PlainText</enum>
+           <item row="0" column="1">
+            <widget class="QSpinBox" name="spinCFKp">
+             <property name="maximum">
+              <number>9999</number>
              </property>
             </widget>
            </item>
            <item row="1" column="1">
-            <widget class="QComboBox" name="comboSensor2AxisRIGHT">
-             <property name="enabled">
-              <bool>false</bool>
-             </property>
-             <item>
-              <property name="text">
-               <string>+X</string>
-              </property>
-             </item>
-             <item>
-              <property name="text">
-               <string>+Y</string>
-              </property>
-             </item>
-             <item>
-              <property name="text">
-               <string>+Z</string>
-              </property>
-             </item>
-             <item>
-              <property name="text">
-               <string>-X</string>
-              </property>
-             </item>
-             <item>
-              <property name="text">
-               <string>-Y</string>
-              </property>
-             </item>
-             <item>
-              <property name="text">
-               <string>-Z</string>
-              </property>
-             </item>
-            </widget>
-           </item>
-           <item row="4" column="0" colspan="2">
-            <widget class="QPushButton" name="pushSensor2AccCalibrate">
-             <property name="enabled">
-              <bool>false</bool>
-             </property>
-             <property name="text">
-              <string>Accel Calibrate</string>
-             </property>
-            </widget>
-           </item>
-           <item row="5" column="0" colspan="2">
-            <widget class="QPushButton" name="pushSensor2GyroCalibrate">
-             <property name="enabled">
-              <bool>false</bool>
-             </property>
-             <property name="text">
-              <string>Gyro Calibrate</string>
+            <widget class="QSpinBox" name="spinCFKi">
+             <property name="maximum">
+              <number>9999</number>
              </property>
             </widget>
            </item>

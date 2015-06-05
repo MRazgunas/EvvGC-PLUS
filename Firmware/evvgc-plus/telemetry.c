@@ -146,6 +146,14 @@ static void telemetryProcessCommand(const PMessage pMsg) {
       telemetryNegativeResponse(pMsg);
     }
     break;
+  case 'F': /* Reads new complementary filter settings; */
+    if ((pMsg->size - TELEMETRY_MSG_SVC_SIZE) == sizeof(g_cfSettings)) {
+      cfSettingsUpdate((uint16_t *)pMsg->data);
+      telemetryPositiveResponse(pMsg);
+    } else {
+      telemetryNegativeResponse(pMsg);
+    }
+    break;
   case 'I': /* Reads new mixed input settings; */
     if ((pMsg->size - TELEMETRY_MSG_SVC_SIZE) == sizeof(g_mixedInput)) {
       mixedInputSettingsUpdate((PMixedInputStruct)pMsg->data);
@@ -205,6 +213,11 @@ static void telemetryProcessCommand(const PMessage pMsg) {
   case 'e': /* Outputs I2C error info structure; */
     memcpy((void *)pMsg->data, (void *)&g_i2cErrorInfo, sizeof(g_i2cErrorInfo));
     pMsg->size = sizeof(g_i2cErrorInfo) + TELEMETRY_MSG_SVC_SIZE;
+    pMsg->crc  = telemetryGetCRC32Checksum(pMsg);
+    break;
+  case 'f': /* Outputs complementary filter settings; */
+    memcpy((void *)pMsg->data, (void *)&g_cfSettings, sizeof(g_cfSettings));
+    pMsg->size = sizeof(g_cfSettings) + TELEMETRY_MSG_SVC_SIZE;
     pMsg->crc  = telemetryGetCRC32Checksum(pMsg);
     break;
   case 'g': /* Outputs gyroscope data; */

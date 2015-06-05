@@ -104,6 +104,14 @@ InputModeStruct g_modeSettings[3] = {
 };
 
 /**
+ * Default complementary filter settings.
+ */
+uint16_t g_cfSettings[2] = {
+  300, /* 2Kp */
+  100  /* 2Ki */
+};
+
+/**
  * Local variables
  */
 static float camAtti[3] = {0.0f};
@@ -183,6 +191,14 @@ static void pidUpdateStruct(void) {
 }
 
 /**
+ * @brief
+ */
+static void cfUpdateSettings(void) {
+  accel2Kp = g_cfSettings[0] * 0.1f;
+  accel2Ki = g_cfSettings[1] * 0.00001f;
+}
+
+/**
  * @brief  First order low-pass filter.
  * @param  raw - pointer to raw data array;
  * @param  filtered - pointer to filtered data array;
@@ -203,6 +219,7 @@ static void accelFilterApply(const float raw[], float filtered[]) {
 void attitudeInit(void) {
   memset((void *)PID, 0, sizeof(PID));
   pidUpdateStruct();
+  cfUpdateSettings();
   accel_alpha = expf(-FIXED_DT_STEP / ACCEL_TAU);
 }
 
@@ -391,4 +408,12 @@ void pidSettingsUpdate(const PPIDSettings pNewSettings) {
  */
 void inputModeSettingsUpdate(const PInputModeStruct pNewSettings) {
   memcpy((void *)&g_modeSettings, (void *)pNewSettings, sizeof(g_modeSettings));
+}
+
+/**
+ * @brief
+ */
+void cfSettingsUpdate(const uint16_t *pNewSettings) {
+  memcpy((void *)&g_cfSettings, (void *)pNewSettings, sizeof(g_cfSettings));
+  cfUpdateSettings();
 }
