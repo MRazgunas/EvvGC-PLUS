@@ -12,7 +12,7 @@
   </property>
   <property name="minimumSize">
    <size>
-    <width>480</width>
+    <width>560</width>
     <height>360</height>
    </size>
   </property>
@@ -1921,6 +1921,80 @@
         </item>
        </layout>
       </widget>
+      <widget class="QWidget" name="tabSpectrum">
+       <attribute name="title">
+        <string>Spectrum</string>
+       </attribute>
+       <layout class="QVBoxLayout" name="verticalLayout_4">
+        <item>
+         <widget class="QComboBox" name="comboSpectrumSource">
+          <property name="enabled">
+           <bool>false</bool>
+          </property>
+          <item>
+           <property name="text">
+            <string>Disabled</string>
+           </property>
+          </item>
+          <item>
+           <property name="text">
+            <string>IMU1 Accelerometer X</string>
+           </property>
+          </item>
+          <item>
+           <property name="text">
+            <string>IMU1 Accelerometer Y</string>
+           </property>
+          </item>
+          <item>
+           <property name="text">
+            <string>IMU1 Accelerometer Z</string>
+           </property>
+          </item>
+          <item>
+           <property name="text">
+            <string>IMU1 Gyroscope X</string>
+           </property>
+          </item>
+          <item>
+           <property name="text">
+            <string>IMU1 Gyroscope Y</string>
+           </property>
+          </item>
+          <item>
+           <property name="text">
+            <string>IMU1 Gyroscope Z</string>
+           </property>
+          </item>
+          <item>
+           <property name="text">
+            <string>IMU1 Attitude X</string>
+           </property>
+          </item>
+          <item>
+           <property name="text">
+            <string>IMU1 Attitude Y</string>
+           </property>
+          </item>
+          <item>
+           <property name="text">
+            <string>IMU1 Attitude Z</string>
+           </property>
+          </item>
+         </widget>
+        </item>
+        <item>
+         <widget class="QCustomPlot" name="plotSpectrum" native="true">
+          <property name="sizePolicy">
+           <sizepolicy hsizetype="Preferred" vsizetype="Expanding">
+            <horstretch>0</horstretch>
+            <verstretch>0</verstretch>
+           </sizepolicy>
+          </property>
+         </widget>
+        </item>
+       </layout>
+      </widget>
      </widget>
     </item>
    </layout>
@@ -2025,7 +2099,7 @@
   <customwidget>
    <class>QCustomPlot</class>
    <extends>QWidget</extends>
-   <header>./3rdparty/qcustomplot.h</header>
+   <header>3rdparty/qcustomplot/qcustomplot.h</header>
    <container>1</container>
   </customwidget>
   <customwidget>

@@ -54,7 +54,7 @@ void SerialThread::run()
     int cr;
 
     serial.setPortName(m_portName);
-    if (!serial.setBaudRate(57600)) {
+    if (!serial.setBaudRate(115200)) {
         qDebug() << "Serial set baud rate failed!";
         emit this->serialError(tr("Can't set baud rate for %1, error code %2. %3.")
             .arg(m_portName).arg(serial.error()).arg(serial.errorString()));

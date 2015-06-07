@@ -1,4 +1,4 @@
-                     #include "mainwindow.h"
+#include "mainwindow.h"
 #include "ui_mainwindow.h"
 
 #include <QMessageBox>
@@ -140,7 +140,10 @@ MainWindow::MainWindow(QWidget *parent) :
     m_fConnected(false),
     m_boardStatus(0),
     m_i2cStatus(new QCheckBox("I2C OK")),
-    m_deadtimeChanged(false)
+    m_deadtimeChanged(false),
+    m_dataInIdx(0),
+    m_amplitude((FFTLengthNumSamples / 2) + 1),
+    m_frequency((FFTLengthNumSamples / 2) + 1)
 {
     ui->setupUi(this);
 
@@ -160,6 +163,7 @@ MainWindow::MainWindow(QWidget *parent) :
     connect(ui->actionSave, SIGNAL(triggered()), this, SLOT(HandleSaveSettings()));
     connect(ui->pushSensor1AccCalibrate, SIGNAL(clicked()), this, SLOT(HandleAccCalibrate()));
     connect(ui->pushSensor1GyroCalibrate, SIGNAL(clicked()), this, SLOT(HandleGyroCalibrate()));
+    connect(ui->comboSpectrumSource, SIGNAL(currentIndexChanged(int)), this, SLOT(HandleSpectrumSourceChanged(int)));
     connect(&m_timer, SIGNAL(timeout()), this, SLOT(ProcessTimeout()));
     connect(&m_serialThread, SIGNAL(serialConnected()), this, SLOT(SerialConnected()));
     connect(&m_serialThread, SIGNAL(serialError(QString)), this, SLOT(SerialError(QString)));
@@ -175,6 +179,7 @@ MainWindow::MainWindow(QWidget *parent) :
     SetSensorSettings();
     SetCFSettings();
 
+    /* Data graph. */
     ui->plotData->addGraph();
      /* line color red for first graph. */
     ui->plotData->graph(0)->setPen(QPen(Qt::red));
@@ -191,6 +196,7 @@ MainWindow::MainWindow(QWidget *parent) :
     ui->plotData->xAxis->setTickStep(2);
     ui->plotData->axisRect()->setupFullAxesBox();
 
+    ui->plotData->xAxis->setLabel("Time, hh:mm:ss");
     //ui->plotData->yAxis->setLabel("Attitude, deg");
 
     /* make left and bottom axes transfer their ranges to right and top axes: */
@@ -202,6 +208,26 @@ MainWindow::MainWindow(QWidget *parent) :
     connect(ui->checkDataX, SIGNAL(clicked()), this, SLOT(HandleDataXClicked()));
     connect(ui->checkDataY, SIGNAL(clicked()), this, SLOT(HandleDataYClicked()));
     connect(ui->checkDataZ, SIGNAL(clicked()), this, SLOT(HandleDataZClicked()));
+
+    /* Spectrum graph. */
+    ui->plotSpectrum->addGraph();
+    ui->plotSpectrum->graph(0)->setLineStyle(QCPGraph::lsImpulse);
+    ui->plotSpectrum->graph(0)->setPen(QPen(QColor("#FFA100"), 2.5));
+    ui->plotSpectrum->yAxis->grid()->setSubGridVisible(true);
+    ui->plotSpectrum->yAxis->setScaleType(QCPAxis::stLogarithmic);
+    ui->plotSpectrum->yAxis->setScaleLogBase(10);
+    ui->plotSpectrum->yAxis->setNumberFormat("eb"); // e = exponential, b = beautiful decimal powers
+    ui->plotSpectrum->yAxis->setNumberPrecision(0); // makes sure "1*10^4" is displayed only as "10^4"
+    ui->plotSpectrum->yAxis->setSubTickCount(5);
+    ui->plotSpectrum->xAxis->setRange(0, 334);
+    ui->plotSpectrum->yAxis->setRange(1e-2, 1e4);
+    ui->plotSpectrum->xAxis->setLabel("Frequency, Hz");
+    ui->plotSpectrum->yAxis->setLabel("Amplitude, a.u.");
+
+    /* Precalculate frequency. */
+    for (int i = 0; i < ((FFTLengthNumSamples / 2) + 1); i++) {
+        m_frequency[i] = i * 666.666667 / FFTLengthNumSamples;
+    }
 }
 
 /**
@@ -247,6 +273,7 @@ void MainWindow::SerialConnect()
         ui->actionRead->setEnabled(false);
         ui->actionSet->setEnabled(false);
         ui->actionSave->setEnabled(false);
+        ui->comboSpectrumSource->setEnabled(false);
         m_serialDeviceList->setEnabled(true);
         ui->statusBar->showMessage(tr("Disconnected from: %1").arg(m_serialDeviceList->currentText()));
         m_fConnected = false;
@@ -255,6 +282,7 @@ void MainWindow::SerialConnect()
         ui->actionConnect->setEnabled(false);
         ui->actionRead->setEnabled(false);
         ui->actionSet->setEnabled(false);
+        ui->comboSpectrumSource->setEnabled(false);
         m_serialDeviceList->setEnabled(false);
         ui->statusBar->showMessage(tr("Connecting to: %1").arg(m_serialDeviceList->currentText()));
     }
@@ -266,6 +294,7 @@ void MainWindow::SerialConnected()
     ui->actionConnect->setEnabled(true);
     ui->actionRead->setEnabled(true);
     ui->actionSet->setEnabled(true);
+    ui->comboSpectrumSource->setEnabled(true);
     m_serialDeviceList->setEnabled(false);
     ui->statusBar->showMessage(tr("Connected to: %1").arg(m_serialDeviceList->currentText()));
     m_fConnected = true;
@@ -549,6 +578,30 @@ void MainWindow::UpdatePlotData(const float xyz[3])
 }
 
 /**
+ * @brief MainWindow::UpdateSpectrum
+ */
+void MainWindow::UpdateSpectrum()
+{
+    float real;
+    float imag;
+
+    m_fft.do_fft(m_dataOut, m_dataIn);
+
+    /* Obtain amplitude for each frequency. */
+    for (int i = 0; i < ((FFTLengthNumSamples / 2) + 1); i++) {
+        real = m_dataOut[i];
+        if ((i > 0) && (i < FFTLengthNumSamples / 2)) {
+            imag = m_dataOut[FFTLengthNumSamples / 2 + i];
+        } else {
+            imag = 0.0f;
+        }
+        m_amplitude[i] = sqrtf(real*real + imag*imag);
+    }
+    ui->plotSpectrum->graph(0)->setData(m_frequency, m_amplitude);
+    ui->plotSpectrum->replot();
+}
+
+/**
  * @brief MainWindow::HandleDataXClicked
  */
 void MainWindow::HandleDataXClicked()
@@ -582,12 +635,19 @@ void MainWindow::HandleGyroCalibrate()
     SerialDataWrite('[', NULL, 0);
 }
 
+void MainWindow::HandleSpectrumSourceChanged(int id)
+{
+    SerialDataWrite('Z', (void *)&id, sizeof(quint8));
+    m_dataInIdx = 0;
+}
+
 /**
  * @brief MainWindow::ProcessSerialCommands
  * @param pMsg
  */
 void MainWindow::ProcessSerialMessages(const TelemetryMessage &msg)
 {
+    quint32 i;
     float rpy[3];
     float *pfloatBuf;
     QQuaternion attiQ;
@@ -628,6 +688,11 @@ void MainWindow::ProcessSerialMessages(const TelemetryMessage &msg)
             qDebug() << "Board entered shutdown sequence!";
             SerialConnect(); // Disconnect actually...
         }
+    case 'Z': /* Response to new stream source ID. */
+        if (strcmp(msg.data, TELEMETRY_RESP_FAIL) == 0) {
+            qDebug() << "New stream source ID was not applied!";
+        }
+        break;
     case 'a': /* Reads accelerometer data. */
         if ((msg.size - TELEMETRY_MSG_SIZE_BYTES) == (sizeof(float) * 3)) {
             pfloatBuf = (float *)(msg.data);
@@ -829,6 +894,21 @@ void MainWindow::ProcessSerialMessages(const TelemetryMessage &msg)
             buf[msg.size] = '\0';
             qDebug() << "Debug log received:" << buf << "\r\n";
             ui->statusBar->showMessage(tr("Debug message received from board: '%1'").arg(buf));
+        }
+        break;
+    case 'z': /* Data stream received. */
+        if ((msg.size - TELEMETRY_MSG_SIZE_BYTES) == (sizeof(float) * 16)) {
+            pfloatBuf = (float *)msg.data;
+            for (i = 0; i < 16; i++) {
+                m_dataIn[m_dataInIdx++] = pfloatBuf[i];
+            }
+            if (m_dataInIdx >= FFTLengthNumSamples) {
+                m_dataInIdx = 0;
+                UpdateSpectrum();
+            }
+        } else {
+            qDebug() << "Stream size mismatch:" << (msg.crc - TELEMETRY_MSG_SIZE_BYTES) \
+                 << "|" << (sizeof(float) * 32);
         }
         break;
     case '[': /* Response to Calibrate gyroscope message. */

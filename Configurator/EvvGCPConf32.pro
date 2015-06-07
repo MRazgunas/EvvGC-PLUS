@@ -11,6 +11,8 @@ greaterThan(QT_MAJOR_VERSION, 4): QT += widgets serialport opengl printsupport
 TARGET = EvvGCPConf32
 TEMPLATE = app
 
+INCLUDEPATH += \
+    3rdparty
 
 SOURCES += \
     main.cpp\
@@ -18,7 +20,7 @@ SOURCES += \
     glwidget.cpp \
     serialthread.cpp \
     crc32.cpp \
-    3rdparty/qcustomplot.cpp
+    3rdparty/qcustomplot/qcustomplot.cpp
 
 HEADERS += \
     mainwindow.h \
@@ -26,7 +28,7 @@ HEADERS += \
     serialthread.h \
     telemetry.h \
     crc32.h \
-    3rdparty/qcustomplot.h
+    3rdparty/qcustomplot/qcustomplot.h
 
 FORMS += \
     mainwindow.ui

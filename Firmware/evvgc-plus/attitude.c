@@ -226,7 +226,7 @@ void attitudeInit(void) {
 /**
  * @brief
  */
-void attitudeUpdate(PIMUStruct pIMU) {
+__attribute__((optimize("O3"))) void attitudeUpdate(PIMUStruct pIMU) {
   float accelErr[3] = {0.0f};
   float mag;
   float dq[4];

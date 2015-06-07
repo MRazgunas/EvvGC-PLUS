@@ -33,6 +33,8 @@
 
 #define WARM_UP_COUNTER_MAX     0x00000BB8
 
+#define STREAM_BUFFER_SIZE      0x20
+
 /**
  * Global variables
  */
@@ -42,6 +44,10 @@ uint32_t g_boardStatus = 0;
 bool_t g_runMain = TRUE;
 /* I2C error info structure. */
 I2CErrorStruct g_i2cErrorInfo = {0, 0};
+/* Stream data id. */
+uint8_t g_streamDataID = 0;
+/* Data streaming index. */
+uint8_t g_streamIdx = 0;
 
 /**
  * Local variables
@@ -58,6 +64,58 @@ SerialUSBDriver SDU1;
 
 /* Binary semaphore indicating that new data is ready to be processed. */
 static BinarySemaphore bsemIMU1DataReady;
+static BinarySemaphore bsemStreamReady;
+
+/* Data streaming buffer. */
+static float dataStream[STREAM_BUFFER_SIZE];
+/* Pointer to low or high part of the data streaming buffer. */
+float *pStream = NULL;
+
+static void streamUpdateData(PIMUStruct pIMU) {
+  switch (g_streamDataID) {
+  case 1: /* Accel X; */
+    dataStream[g_streamIdx++] = pIMU->accelData[0];
+    break;
+  case 2: /* Accel Y; */
+    dataStream[g_streamIdx++] = pIMU->accelData[1];
+    break;
+  case 3: /* Accel Z; */
+    dataStream[g_streamIdx++] = pIMU->accelData[2];
+    break;
+  case 4: /* Gyro X;  */
+    dataStream[g_streamIdx++] = pIMU->gyroData[0];
+    break;
+  case 5: /* Gyro Y;  */
+    dataStream[g_streamIdx++] = pIMU->gyroData[1];
+    break;
+  case 6: /* Gyro Z;  */
+    dataStream[g_streamIdx++] = pIMU->gyroData[2];
+    break;
+  case 7: /* Atti X;  */
+    dataStream[g_streamIdx++] = pIMU->rpy[0];
+    break;
+  case 8: /* Atti Y;  */
+    dataStream[g_streamIdx++] = pIMU->rpy[1];
+    break;
+  case 9: /* Atti Z;  */
+    dataStream[g_streamIdx++] = pIMU->rpy[2];
+    break;
+  default:
+    g_streamIdx = 0;
+    g_streamDataID = 0;
+  }
+
+  if (g_streamIdx == (STREAM_BUFFER_SIZE / 2)) {
+    pStream = &dataStream[0];
+    chBSemSignal(&bsemStreamReady);
+  }
+
+  if (g_streamIdx == STREAM_BUFFER_SIZE) {
+    g_streamIdx = 0;
+    pStream = &dataStream[STREAM_BUFFER_SIZE / 2];
+    chBSemSignal(&bsemStreamReady);
+  }
+}
 
 /**
  * LED blinker thread. Times are in milliseconds.
@@ -137,6 +195,10 @@ static msg_t AttitudeThread(void *arg) {
       }
     }
 
+    if (g_streamDataID) {
+      streamUpdateData(&g_IMU1);
+    }
+
     if (g_boardStatus & IMU_CALIBRATION_MASK) {
       pwmOutputDisableAll();
     } else {
@@ -209,6 +271,8 @@ int main(void) {
   if (g_boardStatus & MPU6050_LOW_DETECTED) {
     /* Creates a taken binary semaphore. */
     chBSemInit(&bsemIMU1DataReady, TRUE);
+    /* Creates a taken binary semaphore. */
+    chBSemInit(&bsemStreamReady, TRUE);
 
     /* Creates the MPU6050 polling thread and attitude calculation thread. */
     tpPoller = chThdCreateStatic(waPollMPU6050Thread, sizeof(waPollMPU6050Thread),
@@ -234,6 +298,11 @@ int main(void) {
     }
     g_chnp = serusbcfg.usbp->state == USB_ACTIVE ? (BaseChannel *)&SDU1 : (BaseChannel *)&SD4;
     telemetryReadSerialData();
+    /* Process data stream if ready. */
+    if ((g_chnp == (BaseChannel *)&SDU1) && /* USB only; */
+        (chBSemWaitTimeout(&bsemStreamReady, TIME_IMMEDIATE) == RDY_OK)) {
+      telemetryWriteStream(pStream, sizeof(float) * STREAM_BUFFER_SIZE / 2);
+    }
     chThdSleepMilliseconds(TELEMETRY_SLEEP_MS);
   }
 

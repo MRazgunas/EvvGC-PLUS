@@ -10,6 +10,8 @@
 
 #include <math.h>
 
+#include "ffft/FFTRealFixLen.h"
+
 #include "serialthread.h"
 #include "telemetry.h"
 #include "crc32.h"
@@ -40,6 +42,12 @@
 #define SENSOR1_AXIS_ID_MASK    0x07
 #define SENSOR2_AXIS_DIR_POS    0x80
 #define SENSOR2_AXIS_ID_MASK    0x70
+
+/* Each pass of the FFT processes 2^X samples, where X is the
+ * number below.
+ */
+static const int FFTLengthPowerOfTwo = 8;
+static const int FFTLengthNumSamples = 256; /* 2^8 = 256 */
 
 typedef struct tagPIDSettings
 {
@@ -105,10 +113,12 @@ private slots:
     void HandleDataZClicked();
     void HandleAccCalibrate();
     void HandleGyroCalibrate();
+    void HandleSpectrumSourceChanged(int id);
 
 private:
     void FillPortsInfo();
     void UpdatePlotData(const float xyz[3]);
+    void UpdateSpectrum();
     bool GetStabilizationSettings();
     bool SetStabilizationSettings();
     bool GetOutputSettings();
@@ -137,6 +147,12 @@ private:
     float m_motorOffset[3];
     QCheckBox *m_i2cStatus;
     bool m_deadtimeChanged;
+    quint32 m_dataInIdx;
+    float m_dataIn[FFTLengthNumSamples];
+    float m_dataOut[FFTLengthNumSamples];
+    QVector<double> m_amplitude;
+    QVector<double> m_frequency;
+    ffft::FFTRealFixLen <FFTLengthPowerOfTwo> m_fft;
 };
 
 #endif // MAINWINDOW_H

@@ -3,7 +3,7 @@
 
 #include <QtGlobal>
 
-#define TELEMETRY_BUFFER_SIZE           0x20
+#define TELEMETRY_BUFFER_SIZE           0x80
 
 #define TELEMETRY_MSG_SOF_ID            0x00
 #define TELEMETRY_MSG_SIZE_ID           0x02
@@ -11,7 +11,7 @@
 #define TELEMETRY_CRC_SIZE_BYTES        0x04
 /* TODO: unify naming with FW */
 #define TELEMETRY_MSG_SIZE_BYTES        ( TELEMETRY_HDR_SIZE_BYTES + TELEMETRY_CRC_SIZE_BYTES )
-#define TELEMETRY_MSG_SIZE_BYTES_MAX    0x20
+#define TELEMETRY_MSG_SIZE_BYTES_MAX    0x80
 
 #define TELEMETRY_MSG_SOF               0xBD
 

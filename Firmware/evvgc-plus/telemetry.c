@@ -37,7 +37,7 @@
 /* Empty message ID. */
 #define TELEMETRY_MSG_NOMSG       0x00
 /* Telemetry buffer size in bytes.  */
-#define TELEMETRY_BUFFER_SIZE     0x20
+#define TELEMETRY_BUFFER_SIZE     0x80
 /* Telemetry message header size in bytes.  */
 #define TELEMETRY_MSG_HDR_SIZE    0x04
 /* Telemetry message checksum size in bytes.  */
@@ -64,6 +64,10 @@ extern uint32_t g_boardStatus;
 extern bool_t g_runMain;
 /* I2C error info structure. */
 extern I2CErrorStruct g_i2cErrorInfo;
+/* Stream data id. */
+extern uint8_t g_streamDataID;
+/* Data streaming index. */
+extern uint8_t g_streamIdx;
 /* Console input/output handle. */
 BaseChannel *g_chnp = NULL;
 
@@ -181,6 +185,15 @@ static void telemetryProcessCommand(const PMessage pMsg) {
   case 'S': /* Reads new PID values; */
     if ((pMsg->size - TELEMETRY_MSG_SVC_SIZE) == sizeof(g_pidSettings)) {
       pidSettingsUpdate((PPIDSettings)pMsg->data);
+      telemetryPositiveResponse(pMsg);
+    } else {
+      telemetryNegativeResponse(pMsg);
+    }
+    break;
+  case 'Z': /* Reads new streaming data id; */
+    if ((pMsg->size - TELEMETRY_MSG_SVC_SIZE) == sizeof(uint8_t)) {
+      g_streamDataID = pMsg->data[0];
+      g_streamIdx    = 0; /* Reset index. */
       telemetryPositiveResponse(pMsg);
     } else {
       telemetryNegativeResponse(pMsg);
@@ -396,6 +409,19 @@ void telemetryReadSerialData(void) {
       msgPos = (uint8_t*)&msg;
     }
   }
+}
+
+/**
+ * @brief
+ */
+void telemetryWriteStream(const float *pData, size_t size) {
+  msg.sof = TELEMETRY_MSG_SOF;
+  msg.msg_id = 'z';
+  msg.size = size + TELEMETRY_MSG_SVC_SIZE;
+  msg.res = 0;
+  memcpy((void *)msg.data, (void *)pData, size);
+  msg.crc = telemetryGetCRC32Checksum(&msg);
+  telemetrySendSerialData(&msg);
 }
 
 /**
