@@ -350,7 +350,7 @@ void cameraRotationUpdate(void) {
         coef *= DEG2RAD;
 
         /* Convert angle difference to speed: */
-        coef = (coef - camRot[i]) / INPUT_SIGNAL_ALPHA / FIXED_DT_STEP;
+        coef = (coef - camAtti[i]) / INPUT_SIGNAL_ALPHA / FIXED_DT_STEP;
       }
     }
     coef = constrain(coef, -speedLimit, speedLimit);
