@@ -25,6 +25,9 @@
 #include "telemetry.h"
 #include "eeprom.h"
 
+#include <AP_Param.h>
+#include <parameters.h>
+
 /* Telemetry operation time out in milliseconds. */
 #define TELEMETRY_SLEEP_MS      20
 
@@ -48,6 +51,11 @@ I2CErrorStruct g_i2cErrorInfo = {0, 0};
 uint8_t g_streamDataID = 0;
 /* Data streaming index. */
 uint8_t g_streamIdx = 0;
+
+/* Global parameters */
+Parameters g;
+
+AP_Param param_loader(var_info);
 
 /**
  * Local variables
@@ -210,6 +218,20 @@ static msg_t AttitudeThread(void *arg) {
   return 0;
 }
 
+static WORKING_AREA(waEepromSaveThread, 512);
+static msg_t EepromSaveThread(void *arg) {
+  (void)arg;
+  while (true) {
+     if ((g_boardStatus & EEPROM_24C02_DETECTED) && eepromIsDataLeft()) {
+        eepromContinueSaving();
+     }
+
+     chThdSleepMilliseconds(5);
+  }
+  /* This point may be reached if shut down is requested. */
+  return 0;
+}
+
 /**
  * @brief   Application entry point.
  * @details
@@ -218,6 +240,7 @@ int main(void) {
   Thread *tpBlinker  = NULL;
   Thread *tpPoller   = NULL;
   Thread *tpAttitude = NULL;
+  Thread *tpEeprom   = NULL;
 
   /* System initializations.
    * - HAL initialization, this also initializes the configured device drivers
@@ -227,6 +250,7 @@ int main(void) {
    */
   halInit();
   chSysInit();
+
 
   /* Initializes a serial-over-USB CDC driver. */
   sduObjectInit(&SDU1);
@@ -258,9 +282,29 @@ int main(void) {
      WARNING! If MPU6050 sensor is not connected to the I2C bus, there
      aren't pull-up resistors on SDA and SCL lines, therefore it is
      impossible to communicate with EEPROM without the sensor connected. */
-  if (eepromLoadSettings()) {
-    g_boardStatus |= EEPROM_24C02_DETECTED;
-  }
+  //TODO: make EEPROM detection
+   g_boardStatus |= EEPROM_24C02_DETECTED;
+
+   tpEeprom = chThdCreateStatic(waEepromSaveThread, sizeof(waEepromSaveThread),
+         NORMALPRIO, EepromSaveThread, NULL);
+
+   // load the default values of variables listed in var_info[]
+   AP_Param::setup_sketch_defaults();
+
+   uint8_t dump[EEPROM_24C02_SIZE];
+   i2cAcquireBus(&I2CD2);
+   i2cMasterTransmitTimeout(&I2CD2, EEPROM_24C02_ADDR, 0x00, 1, (uint8_t *)dump, EEPROM_24C02_SIZE, MS2ST(100));
+   i2cReleaseBus(&I2CD2);
+
+   load_parameters();
+
+   chThdSleepMilliseconds(1000);
+
+   i2cAcquireBus(&I2CD2);
+   i2cMasterTransmitTimeout(&I2CD2, EEPROM_24C02_ADDR, 0x00, 1, (uint8_t *)dump, EEPROM_24C02_SIZE, MS2ST(100));
+   i2cReleaseBus(&I2CD2);
+
+
 
   /* Initializes the MPU6050 sensor1. */
   if (mpu6050Init(g_IMU1.addr)) {
@@ -293,9 +337,9 @@ int main(void) {
 
   /* Normal main() thread activity. */
   while (g_runMain) {
-    if ((g_boardStatus & EEPROM_24C02_DETECTED) && eepromIsDataLeft()) {
+    /*if ((g_boardStatus & EEPROM_24C02_DETECTED) && eepromIsDataLeft()) {
       eepromContinueSaving();
-    }
+    }*/
     g_chnp = serusbcfg.usbp->state == USB_ACTIVE ? (BaseChannel *)&SDU1 : (BaseChannel *)&SD4;
     telemetryReadSerialData();
     /* Process data stream if ready. */
@@ -318,6 +362,7 @@ int main(void) {
   if (tpBlinker != NULL) {
     chThdTerminate(tpBlinker);  /* Requesting termination.                  */
     chThdWait(tpBlinker);       /* Waiting for the actual termination.      */
+
   }
 
   mixedInputStop();             /* Stopping mixed input devices.            */

@@ -38,6 +38,8 @@
 #include "pwmio.h"
 #include "misc.h"
 #include "attitude.h"
+#include <parameters.h>
+#include "AP_Param.h"
 
 /* C libraries: */
 #include <string.h>
@@ -66,6 +68,83 @@ typedef struct tagPIDStruct {
   float prevCmd;
 } __attribute__((packed)) PIDStruct, *PPIDStruct;
 
+const AP_Param::GroupInfo PIDSettings::var_info[] PROGMEM = {
+
+   // @Param: P
+   // @DisplayName: P value for controler
+   // @Description: P value for controler
+   // @Values: 0 128
+   // @User: Advanced
+   AP_GROUPINFO("P", 0, PIDSettings, P, 0),
+
+   // @Param: I
+   // @DisplayName: I value for controler
+   // @Description: I value for controler
+   // @Values: 0 128
+   // @User: Advanced
+   AP_GROUPINFO("I", 1, PIDSettings, I, 0),
+
+   // @Param: D
+   // @DisplayName: D value for controler
+   // @Description: D value for controler
+   // @Values: 0 128
+   // @User: Advanced
+   AP_GROUPINFO("D", 2, PIDSettings, D, 0),
+
+   AP_GROUPEND
+};
+
+const AP_Param::GroupInfo InputMode::var_info[] PROGMEM = {
+
+   // @Param: MIN_ANGLE
+   // @DisplayName: Minimum angle
+   // @Description: Minimal angle which gimbal can reach in ANGLE mode
+   // @Units: degrees
+   // @Range: -16512 16512
+   // @Increment: 1
+   // @User: Advanced
+   AP_GROUPINFO("MIN_ANGLE", 0, InputMode, min_angle, -60),
+
+   // @Param: MAX_ANGLE
+   // @DisplayName: Maximum angle
+   // @Description: Maximum angle which gimbal can reach in ANGLE mode
+   // @Units: degrees
+   // @Range: -16512 16512
+   // @Increment: 1
+   // @User: Advanced
+   AP_GROUPINFO("MAX_ANGLE", 1, InputMode, max_angle, 60),
+
+   // @Param: OFFSET
+   // @DisplayName: Angle offset
+   // @Description: Offset from 0 degrees in angle mode
+   // @Units: degrees
+   // @Range: -16512 16512
+   // @Increment: 1
+   // @User: Advanced
+   AP_GROUPINFO("OFFSET", 2, InputMode, offset, 0),
+
+   // @Param: OFFSET
+   // @DisplayName: Angle offset
+   // @Description: Offset from 0 degrees in angle mode
+   // @Units: degrees/s
+   // @Range: -16512 16512
+   // @Increment: 1
+   // @User: Advanced
+   AP_GROUPINFO("SPEED", 3, InputMode, speed, 0),
+
+   // @Param: INPUT_MODE
+   // @DisplayName: Input mode
+   // @Description: Mode of input
+   // @Values: 0:Angle mode 1:Speed mode 2:Follow mode
+   // @Increment: 1
+   // @User: Advanced
+   AP_GROUPINFO("INPUT_MODE", 4, InputMode, mode_id, INPUT_MODE_ANGLE),
+
+   AP_GROUPEND
+};
+
+
+extern Parameters g;
 /**
  * Global variables.
  */
@@ -73,43 +152,14 @@ typedef struct tagPIDStruct {
 float g_motorOffset[3] = {0.0f, 0.0f, 0.0f};
 
 /**
- * Default PID settings.
+ * PID settings.
  */
-PIDSettings g_pidSettings[3] = {
-/* P, I, D */
-  {0, 0, 0}, /* Pitch PID */
-  {0, 0, 0}, /* Roll  PID */
-  {0, 0, 0}, /* Yaw   PID */
-};
+PIDSettings g_pidSettings[3];
 
 /**
- * Default input mode settings.
+ * Input mode settings.
  */
-InputModeStruct g_modeSettings[3] = {
-  {-60,               /* Min angle */
-   60,                /* Max angle */
-   0,                 /* Offset    */
-   20,                /* Speed     */
-   INPUT_MODE_ANGLE}, /* Mode ID   */
-  {-60,               /* Min angle */
-   60,                /* Max angle */
-   0,                 /* Offset    */
-   20,                /* Speed     */
-   INPUT_MODE_ANGLE}, /* Mode ID   */
-  {-90,               /* Min angle */
-   90,                /* Max angle */
-   0,                 /* Offset    */
-   20,                /* Speed     */
-   INPUT_MODE_SPEED}, /* Mode ID   */
-};
-
-/**
- * Default complementary filter settings.
- */
-uint16_t g_cfSettings[2] = {
-  300, /* 2Kp */
-  100  /* 2Ki */
-};
+InputMode g_modeSettings[3];
 
 /**
  * Local variables
@@ -194,8 +244,8 @@ static void pidUpdateStruct(void) {
  * @brief
  */
 static void cfUpdateSettings(void) {
-  accel2Kp = g_cfSettings[0] * 0.1f;
-  accel2Ki = g_cfSettings[1] * 0.00001f;
+  accel2Kp = g.cf_2kp * 0.1f;
+  accel2Ki = g.cf_2ki * 0.00001f;
 }
 
 /**
@@ -399,7 +449,29 @@ void actuatorsUpdate(void) {
  * @brief
  */
 void pidSettingsUpdate(const PPIDSettings pNewSettings) {
-  memcpy((void *)&g_pidSettings, (void *)pNewSettings, sizeof(g_pidSettings));
+   enum ap_var_type var_type;
+   AP_Param *vp;
+   vp = AP_Param::set_param_by_name("PITCH_P", pNewSettings[0].P, &var_type);
+   vp->save();
+   vp = AP_Param::set_param_by_name("PITCH_I", pNewSettings[0].I, &var_type);
+   vp->save();
+   vp = AP_Param::set_param_by_name("PITCH_D", pNewSettings[0].D, &var_type);
+   vp->save();
+
+   vp = AP_Param::set_param_by_name("ROLL_P", pNewSettings[1].P, &var_type);
+   vp->save();
+   vp = AP_Param::set_param_by_name("ROLL_I", pNewSettings[1].I, &var_type);
+   vp->save();
+   vp = AP_Param::set_param_by_name("ROLL_D", pNewSettings[1].D, &var_type);
+   vp->save();
+
+   vp = AP_Param::set_param_by_name("YAW_P", pNewSettings[2].P, &var_type);
+   vp->save();
+   vp = AP_Param::set_param_by_name("YAW_I", pNewSettings[2].I, &var_type);
+   vp->save();
+   vp = AP_Param::set_param_by_name("YAW_D", pNewSettings[2].D, &var_type);
+   vp->save();
+
   pidUpdateStruct();
 }
 
@@ -407,13 +479,53 @@ void pidSettingsUpdate(const PPIDSettings pNewSettings) {
  * @brief
  */
 void inputModeSettingsUpdate(const PInputModeStruct pNewSettings) {
-  memcpy((void *)&g_modeSettings, (void *)pNewSettings, sizeof(g_modeSettings));
+   enum ap_var_type var_type;
+   AP_Param *vp;
+   vp = AP_Param::set_param_by_name("PITCH_MIN_ANGLE", pNewSettings[0].min_angle, &var_type);
+   vp->save();
+   vp = AP_Param::set_param_by_name("PITCH_MAX_ANGLE", pNewSettings[0].max_angle, &var_type);
+   vp->save();
+   vp = AP_Param::set_param_by_name("PITCH_OFFSET", pNewSettings[0].offset, &var_type);
+   vp->save();
+   vp = AP_Param::set_param_by_name("PITCH_SPEED", pNewSettings[0].speed, &var_type);
+   vp->save();
+   vp = AP_Param::set_param_by_name("PITCH_INPUT_MODE", pNewSettings[0].mode_id, &var_type);
+   vp->save();
+
+   vp = AP_Param::set_param_by_name("ROLL_MIN_ANGLE", pNewSettings[1].min_angle, &var_type);
+   vp->save();
+   vp = AP_Param::set_param_by_name("ROLL_MAX_ANGLE", pNewSettings[1].max_angle, &var_type);
+   vp->save();
+   vp = AP_Param::set_param_by_name("ROLL_OFFSET", pNewSettings[1].offset, &var_type);
+   vp->save();
+   vp = AP_Param::set_param_by_name("ROLL_SPEED", pNewSettings[1].speed, &var_type);
+   vp->save();
+   vp = AP_Param::set_param_by_name("ROLL_INPUT_MODE", pNewSettings[1].mode_id, &var_type);
+   vp->save();
+
+   vp = AP_Param::set_param_by_name("YAW_MIN_ANGLE", pNewSettings[2].min_angle, &var_type);
+   vp->save();
+   vp = AP_Param::set_param_by_name("YAW_MAX_ANGLE", pNewSettings[2].max_angle, &var_type);
+   vp->save();
+   vp = AP_Param::set_param_by_name("YAW_OFFSET", pNewSettings[2].offset, &var_type);
+   vp->save();
+   vp = AP_Param::set_param_by_name("YAW_SPEED", pNewSettings[2].speed, &var_type);
+   vp->save();
+   vp = AP_Param::set_param_by_name("YAW_INPUT_MODE", pNewSettings[2].mode_id, &var_type);
+   vp->save();
 }
 
 /**
  * @brief
  */
 void cfSettingsUpdate(const uint16_t *pNewSettings) {
-  memcpy((void *)&g_cfSettings, (void *)pNewSettings, sizeof(g_cfSettings));
+   uint16_t g_cfSettings[2];
+   memcpy((void *)&g_cfSettings, (void *)pNewSettings, sizeof(g_cfSettings));
+   enum ap_var_type var_type;
+   AP_Param *vp;
+   vp = AP_Param::set_param_by_name("COMP_F_2KP", g_cfSettings[0], &var_type);
+   vp->save();
+   vp = AP_Param::set_param_by_name("COMP_F_2KI", g_cfSettings[1], &var_type);
+   vp->save();
   cfUpdateSettings();
 }

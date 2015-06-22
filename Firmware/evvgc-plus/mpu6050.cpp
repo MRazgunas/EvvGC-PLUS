@@ -27,6 +27,8 @@
 #include "misc.h"
 #include "telemetry.h"
 #include "mpu6050.h"
+#include "parameters.h"
+#include <AP_Param.h>
 
 /* C libraries: */
 #include <string.h>
@@ -70,23 +72,14 @@
 #define MPU6050_RX_BUF_SIZE       0x0E
 #define MPU6050_TX_BUF_SIZE       0x05
 
-#define IMU_AXIS_DIR_POS          0x08
-#define IMU_AXIS_ID_MASK          0x07
-
-#define IMU1_AXIS_DIR_POS         0x08
-#define IMU1_AXIS_ID_MASK         0x07
-#define IMU1_CONF_MASK            0x0F
-
-#define IMU2_AXIS_DIR_POS         0x80
-#define IMU2_AXIS_ID_MASK         0x70
-#define IMU2_CONF_MASK            0xF0
-
 /* I2C read transaction time-out in milliseconds. */
 #define MPU6050_READ_TIMEOUT_MS   0x01
 /* I2C write transaction time-out in milliseconds. */
 #define MPU6050_WRITE_TIMEOUT_MS  0x01
 
 #define CALIBRATION_COUNTER_MAX   2000
+
+extern Parameters g;
 
 /**
  * Global variables
@@ -353,23 +346,37 @@ uint8_t mpu6050GetNewData(PIMUStruct pIMU) {
  * @brief
  */
 void sensorSettingsUpdate(const uint8_t *pNewSettings) {
-  uint8_t i;
-  memcpy((void *)g_sensorSettings, (void *)pNewSettings, sizeof(g_sensorSettings));
-  for (i = 0; i < 3; i++) {
-    g_IMU1.axes_conf[i] = g_sensorSettings[i] & IMU1_CONF_MASK;
-  }
+   g_IMU1.axes_conf[0] = pNewSettings[0] & IMU1_CONF_MASK;
+   g_IMU1.axes_conf[1] = pNewSettings[1] & IMU1_CONF_MASK;
+   g_IMU1.axes_conf[2] = pNewSettings[2] & IMU1_CONF_MASK;
+
+   enum ap_var_type var_type;
+   AP_Param *vp;
+   vp = AP_Param::set_param_by_name("SENSOR_SETT_X", pNewSettings[0], &var_type);
+   vp->save();
+   vp = AP_Param::set_param_by_name("SENSOR_SETT_Y", pNewSettings[1], &var_type);
+   vp->save();
+   vp = AP_Param::set_param_by_name("SENSOR_SETT_Z", pNewSettings[2], &var_type);
+   vp->save();
+
 }
 
 /**
  * @brief
  */
-void accelBiasUpdate(PIMUStruct pIMU, const float *pNewSettings) {
-  memcpy((void *)pIMU->accelBias, (void *)pNewSettings, sizeof(pIMU->accelBias));
+void accelBiasUpdate(void) {
+  //memcpy((void *)pIMU->accelBias, (void *)pNewSettings, sizeof(pIMU->accelBias));
+   g_IMU1.accelBias[0] = g.sensor_accelBias_x;
+   g_IMU1.accelBias[1] = g.sensor_accelBias_y;
+   g_IMU1.accelBias[2] = g.sensor_accelBias_z;
 }
 
 /**
  * @brief
  */
-void gyroBiasUpdate(PIMUStruct pIMU, const float *pNewSettings) {
-	memcpy((void *)pIMU->gyroBias, (void *)pNewSettings, sizeof(pIMU->gyroBias));
+void gyroBiasUpdate(void) {
+	//memcpy((void *)pIMU->gyroBias, (void *)pNewSettings, sizeof(pIMU->gyroBias));
+   g_IMU1.gyroBias[0] = g.sensor_gyroBias_x;
+   g_IMU1.gyroBias[1] = g.sensor_gyroBias_x;
+   g_IMU1.gyroBias[2] = g.sensor_gyroBias_x;
 }

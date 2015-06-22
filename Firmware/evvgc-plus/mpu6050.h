@@ -25,6 +25,18 @@
 #define IMU2_CALIBRATION_MASK       0x00000060
 #define IMU_CALIBRATION_MASK        0x00000078
 
+#define IMU_AXIS_DIR_POS          0x08
+#define IMU_AXIS_ID_MASK          0x07
+
+#define IMU1_AXIS_DIR_POS         0x08
+#define IMU1_AXIS_ID_MASK         0x07
+#define IMU1_CONF_MASK            0x0F
+
+#define IMU2_AXIS_DIR_POS         0x80
+#define IMU2_AXIS_ID_MASK         0x70
+#define IMU2_CONF_MASK            0xF0
+
+
 typedef struct tagIMUStruct {
   float accelData[3];     /* Accelerometer data.             */
   float gyroData[3];      /* Gyroscope data.                 */
@@ -52,8 +64,8 @@ extern "C" {
   uint8_t imuCalibrate(PIMUStruct pIMU, uint8_t fCalibrateAcc);
   uint8_t mpu6050Init(uint8_t addr);
   uint8_t mpu6050GetNewData(PIMUStruct pIMU);
-  void accelBiasUpdate(PIMUStruct pIMU, const float *pNewSettings);
-  void gyroBiasUpdate(PIMUStruct pIMU, const float *pNewSettings);
+  void accelBiasUpdate(void);
+  void gyroBiasUpdate(void);
   void sensorSettingsUpdate(const uint8_t *pNewSettings);
 #ifdef __cplusplus
 }

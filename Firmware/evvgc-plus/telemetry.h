@@ -17,6 +17,9 @@
 #ifndef _TELEMETRY_H_
 #define _TELEMETRY_H_
 
+#include "ch.h"
+#include "io_channel.h" //TODO: probably shouldn't be here??
+
 /* Console input/output channel. */
 extern BaseChannel *g_chnp;
 

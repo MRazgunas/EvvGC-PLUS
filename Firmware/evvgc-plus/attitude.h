@@ -17,11 +17,42 @@
 #ifndef _ATTITUDE_H_
 #define _ATTITUDE_H_
 
+#include <AP_Param.h>
+#include <mpu6050.h>
+
+class PIDSettings {
+public:
+   PIDSettings() {
+      AP_Param::setup_object_defaults(this, var_info);
+   }
+
+   static const AP_Param::GroupInfo var_info[];
+
+   AP_Int8 P;
+   AP_Int8 I;
+   AP_Int8 D;
+};
+
+class InputMode {
+public:
+   InputMode() {
+      AP_Param::setup_object_defaults(this, var_info);
+   }
+
+   static const AP_Param::GroupInfo var_info[];
+
+   AP_Int16 min_angle;
+   AP_Int16 max_angle;
+   AP_Int16 offset;
+   AP_Int8 speed;
+   AP_Int8 mode_id;
+};
+
 typedef struct tagPIDSettings {
   uint8_t P;
   uint8_t I;
   uint8_t D;
-} __attribute__((packed)) PIDSettings, *PPIDSettings;
+} __attribute__((packed)) PIDSettin, *PPIDSettings;
 
 typedef struct tagInputModeStruct {
   int16_t min_angle;
@@ -33,8 +64,9 @@ typedef struct tagInputModeStruct {
 
 extern float g_motorOffset[3];
 extern PIDSettings g_pidSettings[3];
-extern InputModeStruct g_modeSettings[3];
-extern uint16_t g_cfSettings[2];
+extern InputMode g_modeSettings[3];
+//extern uint16_t g_cfSettings[2];
+
 
 #ifdef __cplusplus
 extern "C" {
@@ -43,9 +75,9 @@ extern "C" {
   void attitudeUpdate(PIMUStruct pIMU);
   void cameraRotationUpdate(void);
   void actuatorsUpdate(void);
+  void cfSettingsUpdate(const uint16_t *pNewSettings);
   void pidSettingsUpdate(const PPIDSettings pNewSettings);
   void inputModeSettingsUpdate(const PInputModeStruct pNewSettings);
-  void cfSettingsUpdate(const uint16_t *pNewSettings);
 #ifdef __cplusplus
 }
 #endif

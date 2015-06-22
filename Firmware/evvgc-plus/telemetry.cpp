@@ -24,6 +24,9 @@
 #include "attitude.h"
 #include "usbcfg.h"
 #include "telemetry.h"
+#include "parameters.h"
+
+extern Parameters g;
 
 /* C libraries: */
 #include <string.h>
@@ -151,7 +154,7 @@ static void telemetryProcessCommand(const PMessage pMsg) {
     }
     break;
   case 'F': /* Reads new complementary filter settings; */
-    if ((pMsg->size - TELEMETRY_MSG_SVC_SIZE) == sizeof(g_cfSettings)) {
+    if ((pMsg->size - TELEMETRY_MSG_SVC_SIZE) == sizeof(uint16_t) * 2) {
       cfSettingsUpdate((uint16_t *)pMsg->data);
       telemetryPositiveResponse(pMsg);
     } else {
@@ -159,7 +162,7 @@ static void telemetryProcessCommand(const PMessage pMsg) {
     }
     break;
   case 'I': /* Reads new mixed input settings; */
-    if ((pMsg->size - TELEMETRY_MSG_SVC_SIZE) == sizeof(g_mixedInput)) {
+    if ((pMsg->size - TELEMETRY_MSG_SVC_SIZE) == sizeof(MixedInputStruct)*3) {
       mixedInputSettingsUpdate((PMixedInputStruct)pMsg->data);
       telemetryPositiveResponse(pMsg);
     } else {
@@ -167,7 +170,7 @@ static void telemetryProcessCommand(const PMessage pMsg) {
     }
     break;
   case 'M': /* Reads new input mode settings; */
-    if ((pMsg->size - TELEMETRY_MSG_SVC_SIZE) == sizeof(g_modeSettings)) {
+    if ((pMsg->size - TELEMETRY_MSG_SVC_SIZE) == sizeof(InputModeStruct)*3) {
       inputModeSettingsUpdate((PInputModeStruct)pMsg->data);
       telemetryPositiveResponse(pMsg);
     } else {
@@ -175,7 +178,7 @@ static void telemetryProcessCommand(const PMessage pMsg) {
     }
     break;
   case 'O': /* Reads new output settings; */
-    if ((pMsg->size - TELEMETRY_MSG_SVC_SIZE) == sizeof(g_pwmOutput)) {
+    if ((pMsg->size - TELEMETRY_MSG_SVC_SIZE) == sizeof(PWMOutputStruct)*3) {
       pwmOutputSettingsUpdate((PPWMOutputStruct)pMsg->data);
       telemetryPositiveResponse(pMsg);
     } else {
@@ -183,7 +186,7 @@ static void telemetryProcessCommand(const PMessage pMsg) {
     }
     break;
   case 'S': /* Reads new PID values; */
-    if ((pMsg->size - TELEMETRY_MSG_SVC_SIZE) == sizeof(g_pidSettings)) {
+    if ((pMsg->size - TELEMETRY_MSG_SVC_SIZE) == sizeof(PIDSettin)*3) {
       pidSettingsUpdate((PPIDSettings)pMsg->data);
       telemetryPositiveResponse(pMsg);
     } else {
@@ -210,7 +213,7 @@ static void telemetryProcessCommand(const PMessage pMsg) {
     pMsg->crc  = telemetryGetCRC32Checksum(pMsg);
     break;
   case 'c': /* Saves settings to EEPROM; */
-    if (eepromSaveSettings()) {
+    if (/*eepromSaveSettings()*/false) {
       telemetryPositiveResponse(pMsg);
     } else {
       telemetryNegativeResponse(pMsg);
@@ -229,8 +232,11 @@ static void telemetryProcessCommand(const PMessage pMsg) {
     pMsg->crc  = telemetryGetCRC32Checksum(pMsg);
     break;
   case 'f': /* Outputs complementary filter settings; */
-    memcpy((void *)pMsg->data, (void *)&g_cfSettings, sizeof(g_cfSettings));
-    pMsg->size = sizeof(g_cfSettings) + TELEMETRY_MSG_SVC_SIZE;
+    uint16_t tmp[2];
+    tmp[0] = g.cf_2kp;
+    tmp[1] = g.cf_2ki;
+    memcpy((void *)pMsg->data, (void *)&tmp, sizeof(tmp));
+    pMsg->size = sizeof(tmp) + TELEMETRY_MSG_SVC_SIZE;
     pMsg->crc  = telemetryGetCRC32Checksum(pMsg);
     break;
   case 'g': /* Outputs gyroscope data; */
@@ -251,22 +257,37 @@ static void telemetryProcessCommand(const PMessage pMsg) {
     pMsg->crc  = telemetryGetCRC32Checksum(pMsg);
     break;
   case 'm': /* Outputs input mode settings; */
-    memcpy((void *)pMsg->data, (void *)g_modeSettings, sizeof(g_modeSettings));
-    pMsg->size = sizeof(g_modeSettings) + TELEMETRY_MSG_SVC_SIZE;
+    InputModeStruct tmp1[3];
+    tmp1[0].min_angle = g_modeSettings[0].min_angle; tmp1[0].max_angle = g_modeSettings[0].max_angle; tmp1[0].mode_id = g_modeSettings[0].mode_id;
+    tmp1[0].offset = g_modeSettings[0].offset; tmp1[0].speed = g_modeSettings[0].speed;
+    tmp1[1].min_angle = g_modeSettings[1].min_angle; tmp1[1].max_angle = g_modeSettings[1].max_angle; tmp1[1].mode_id = g_modeSettings[1].mode_id;
+    tmp1[1].offset = g_modeSettings[1].offset; tmp1[1].speed = g_modeSettings[1].speed;
+    tmp1[2].min_angle = g_modeSettings[2].min_angle; tmp1[2].max_angle = g_modeSettings[2].max_angle; tmp1[2].mode_id = g_modeSettings[2].mode_id;
+    tmp1[2].offset = g_modeSettings[2].offset; tmp1[2].speed = g_modeSettings[2].speed;
+    memcpy((void *)pMsg->data, (void *)tmp1, sizeof(tmp1));
+    pMsg->size = sizeof(tmp1) + TELEMETRY_MSG_SVC_SIZE;
     pMsg->crc  = telemetryGetCRC32Checksum(pMsg);
     break;
   case 'o': /* Outputs PWM output settings; */
     /* Clean data buffer for zero-padded crc32 checksum calculation. */
+    PWMOutputStruct tmp2[3];
+    tmp2[0].dt_cmd_id = g_pwmOutput[0].dt_cmd_id; tmp2[0].flags = g_pwmOutput[0].flags; tmp2[0].num_poles = g_pwmOutput[0].num_poles; tmp2[0].power = g_pwmOutput[0].power;
+    tmp2[1].dt_cmd_id = g_pwmOutput[1].dt_cmd_id; tmp2[1].flags = g_pwmOutput[1].flags; tmp2[1].num_poles = g_pwmOutput[1].num_poles; tmp2[1].power = g_pwmOutput[1].power;
+    tmp2[2].dt_cmd_id = g_pwmOutput[2].dt_cmd_id; tmp2[2].flags = g_pwmOutput[2].flags; tmp2[2].num_poles = g_pwmOutput[2].num_poles; tmp2[2].power = g_pwmOutput[2].power;
     memset((void *)pMsg->data, 0, TELEMETRY_BUFFER_SIZE);
-    memcpy((void *)pMsg->data, (void *)g_pwmOutput, sizeof(g_pwmOutput));
-    pMsg->size = sizeof(g_pwmOutput) + TELEMETRY_MSG_SVC_SIZE;
+    memcpy((void *)pMsg->data, (void *)tmp2, sizeof(tmp2));
+    pMsg->size = sizeof(tmp2) + TELEMETRY_MSG_SVC_SIZE;
     pMsg->crc  = telemetryGetCRC32Checksum(pMsg);
     break;
   case 'p': /* Outputs mixed input settings. */
     /* Clean data buffer for zero-padded crc32 checksum calculation. */
+    MixedInputStruct tmp3[3];
+    tmp3[0].channel_id = g_mixedInput[0].channel_id; tmp3[0].max_val = g_mixedInput[0].max_val; tmp3[0].mid_val = g_mixedInput[0].mid_val; tmp3[0].min_val = g_mixedInput[0].min_val;
+    tmp3[1].channel_id = g_mixedInput[1].channel_id; tmp3[1].max_val = g_mixedInput[1].max_val; tmp3[1].mid_val = g_mixedInput[1].mid_val; tmp3[1].min_val = g_mixedInput[1].min_val;
+    tmp3[2].channel_id = g_mixedInput[2].channel_id; tmp3[2].max_val = g_mixedInput[2].max_val; tmp3[2].mid_val = g_mixedInput[2].mid_val; tmp3[2].min_val = g_mixedInput[2].min_val;
     memset((void *)pMsg->data, 0, TELEMETRY_BUFFER_SIZE);
-    memcpy((void *)pMsg->data, (void *)g_mixedInput, sizeof(g_mixedInput));
-    pMsg->size = sizeof(g_mixedInput) + TELEMETRY_MSG_SVC_SIZE;
+    memcpy((void *)pMsg->data, (void *)tmp3, sizeof(tmp3));
+    pMsg->size = sizeof(tmp3) + TELEMETRY_MSG_SVC_SIZE;
     pMsg->crc  = telemetryGetCRC32Checksum(pMsg);
     break;
   case 'r': /* Outputs camera attitude data; */
@@ -276,9 +297,13 @@ static void telemetryProcessCommand(const PMessage pMsg) {
     break;
   case 's': /* Outputs PID settings; */
     /* Clean data buffer for zero-padded crc32 checksum calculation. */
+    PIDSettin tmp4[3];
+    tmp4[0].D = g_pidSettings[0].D; tmp4[0].I = g_pidSettings[0].I; tmp4[0].P = g_pidSettings[0].P;
+    tmp4[1].D = g_pidSettings[1].D; tmp4[1].I = g_pidSettings[1].I; tmp4[1].P = g_pidSettings[1].P;
+    tmp4[2].D = g_pidSettings[2].D; tmp4[2].I = g_pidSettings[2].I; tmp4[2].P = g_pidSettings[2].P;
     memset((void *)pMsg->data, 0, TELEMETRY_BUFFER_SIZE);
-    memcpy((void *)pMsg->data, (void *)g_pidSettings, sizeof(g_pidSettings));
-    pMsg->size = sizeof(g_pidSettings) + TELEMETRY_MSG_SVC_SIZE;
+    memcpy((void *)pMsg->data, (void *)tmp4, sizeof(tmp4));
+    pMsg->size = sizeof(tmp4) + TELEMETRY_MSG_SVC_SIZE;
     pMsg->crc  = telemetryGetCRC32Checksum(pMsg);
     break;
   case '[': /* Calibrate gyroscope. */

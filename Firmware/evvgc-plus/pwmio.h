@@ -64,12 +64,35 @@
 #define INPUT_CHANNEL_AUX5      0x04
 #define INPUT_CHANNEL_DISABLED  0x05
 
-typedef struct tagPWMOutputStruct {
-  uint8_t power;
-  uint8_t num_poles;
-  uint8_t flags;
-  uint8_t dt_cmd_id; /* High nibble contains dead-time ID, low nibble contains command ID. */
-} __attribute__((packed)) PWMOutputStruct, *PPWMOutputStruct;
+#include <AP_Param.h>
+
+class PWMOutput {
+public:
+   PWMOutput(){
+      AP_Param::setup_object_defaults(this, var_info);
+   }
+
+   static const AP_Param::GroupInfo var_info[];
+
+   AP_Int8 power;
+   AP_Int8 num_poles;
+   AP_Int8 flags;
+   AP_Int8 dt_cmd_id;
+};
+
+class MixedInput {
+public:
+   MixedInput() {
+      AP_Param::setup_object_defaults(this, var_info);
+   }
+
+   static const AP_Param::GroupInfo var_info[];
+
+   AP_Int16 min_val;
+   AP_Int16 mid_val;
+   AP_Int16 max_val;
+   AP_Int8 channel_id;
+};
 
 typedef struct tagMixedInputStruct {
   int16_t min_val;
@@ -78,8 +101,15 @@ typedef struct tagMixedInputStruct {
   uint8_t channel_id;
 } __attribute__((packed)) MixedInputStruct, *PMixedInputStruct;
 
-extern PWMOutputStruct g_pwmOutput[3];
-extern MixedInputStruct g_mixedInput[3];
+typedef struct tagPWMOutputStruct {
+  uint8_t power;
+  uint8_t num_poles;
+  uint8_t flags;
+  uint8_t dt_cmd_id; /* High nibble contains dead-time ID, low nibble contains command ID. */
+} __attribute__((packed)) PWMOutputStruct, *PPWMOutputStruct;
+
+extern PWMOutput g_pwmOutput[3];
+extern MixedInput g_mixedInput[3];
 extern int16_t g_inputValues[5];
 
 #ifdef __cplusplus
@@ -92,7 +122,7 @@ extern "C" {
   void pwmOutputSettingsUpdate(const PPWMOutputStruct pNewSettings);
   void mixedInputStart(void);
   void mixedInputStop(void);
-  void mixedInputSettingsUpdate(const PMixedInputStruct pNewSettings);
+  void mixedInputSettingsUpdate(const PMixedInputStruct  pNewSettings);
 #ifdef __cplusplus
 }
 #endif

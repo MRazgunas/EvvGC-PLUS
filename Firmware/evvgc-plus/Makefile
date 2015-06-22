@@ -5,7 +5,7 @@
 
 # Compiler options here.
 ifeq ($(USE_OPT),)
-  USE_OPT = -O2 -ggdb -fomit-frame-pointer -falign-functions=16
+  USE_OPT = -O0 -ggdb -fomit-frame-pointer -falign-functions=16 --specs=nosys.specs
 endif
 
 # C specific options here (added to USE_OPT).
@@ -69,6 +69,7 @@ include $(SRCDIR)/chibios_2.6.x/hal/platforms/STM32F1xx/platform.mk
 include $(SRCDIR)/chibios_2.6.x/hal/hal.mk
 include $(SRCDIR)/chibios_2.6.x/ports/GCC/ARMCMx/STM32F1xx/port.mk
 include $(SRCDIR)/chibios_2.6.x/kernel/kernel.mk
+include $(SRCDIR)/chibios_2.6.x/various/cpp_wrappers/kernel.mk
 
 # Define linker script file here
 ifeq ($(USE_USB_BL),yes)
@@ -86,18 +87,15 @@ CSRC = $(PORTSRC) \
        $(HALSRC) \
        $(PLATFORMSRC) \
        $(BOARDSRC) \
-       attitude.c \
-       eeprom.c \
-       main.c \
        misc.c \
-       mpu6050.c \
-       pwmio.c \
-       telemetry.c \
-       usbcfg.c
+       usbcfg.c \
+       
 
 # C++ sources that can be compiled in ARM or THUMB mode depending on the global
 # setting.
-CPPSRC =
+CPPSRC = $(CHCPPSRC) main.cpp libraries/AP_Param/AP_Param.cpp \
+			libraries/AP_Param/AP_Math/AP_Math.cpp parameters.cpp \
+			attitude.cpp eeprom.cpp telemetry.cpp pwmio.cpp mpu6050.cpp
 
 # C sources to be compiled in ARM mode regardless of the global setting.
 # NOTE: Mixing ARM and THUMB mode enables the -mthumb-interwork compiler
@@ -123,7 +121,8 @@ TCPPSRC =
 ASMSRC = $(PORTASM)
 
 INCDIR = $(PORTINC) $(KERNINC) $(TESTINC) \
-         $(HALINC) $(PLATFORMINC) $(BOARDINC)
+         $(HALINC) $(PLATFORMINC) $(BOARDINC) \
+         $(CHCPPINC) libraries/AP_Param libraries/AP_Param/AP_Math
 
 #
 # Project, sources and paths

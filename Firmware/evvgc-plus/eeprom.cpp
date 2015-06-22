@@ -33,38 +33,12 @@
 /* C libraries: */
 #include <string.h>
 
-/* Address of the 24C02 EEPROM chip: 1 0 1 0 1 1 1; */
-#define EEPROM_24C02_ADDR       0x57
-/* Size of the chip is 256 bytes (2048 bits or 2kbit); */
-#define EEPROM_24C02_SIZE       0x0100
-/* 8 Bytes per page; */
-#define EEPROM_24C02_PAGE_SIZE  0x08
-/* I2C read transaction time-out in milliseconds. */
-#define EEPROM_READ_TIMEOUT_MS  0x05
-/* I2C write transaction time-out in milliseconds. */
-#define EEPROM_WRITE_TIMEOUT_MS 0x01
-/* The beginning of the EEPROM. */
-#define EEPROM_START_ADDR       0x00
 
 typedef struct tagEEPROMStruct {
   uint8_t addr;
   uint8_t *data;
   size_t dataSize;
 } __attribute__((packed)) EEPROMStruct, *PEEPROMStruct;
-
-typedef struct tagEEPROMDataStruct {
-  PIDSettings pidSettings[3];       /*  9 bytes */
-  PWMOutputStruct pwmOutput[3];     /* 12 bytes */
-  MixedInputStruct mixedInput[3];   /* 21 byte  */
-  InputModeStruct modeSettings[3];  /* 24 bytes */
-  uint8_t sensorSettings[3];        /*  3 bytes */
-  uint16_t cfSettings[2];           /*  4 bytes */
-  float accelBias[3];               /* 12 bytes */
-  float gyroBias[3];                /* 12 bytes */
-  uint32_t crc32;                   /*  4 bytes */
-/* TOTAL:                             101 bytes */
-/* Bytes left:                        155 bytes */
-} __attribute__((packed)) EEPROMDataStruct, *PEEPROMDataStruct;
 
 /**
  * Global variables
@@ -76,7 +50,6 @@ extern I2CErrorStruct g_i2cErrorInfo;
  * Local variables
  */
 static EEPROMStruct eeprom;
-static EEPROMDataStruct eepromData;
 
 /**
  * @brief  Writes data buffer to specified EEPROM chip address.
@@ -156,67 +129,43 @@ static uint8_t eepromWriteData(const PEEPROMStruct pEEPROM) {
   return 1;
 }
 
-/**
- * @brief  Loads all user defined settings from external EEPROM chip.
- * @return 1 - if write operation is successful;
- *         0 - if write operation fails.
- */
-uint8_t eepromLoadSettings(void) {
-  msg_t status = RDY_OK;
-  uint8_t addr = EEPROM_START_ADDR;
-
-  i2cAcquireBus(&I2CD2);
-  status = i2cMasterTransmitTimeout(&I2CD2, EEPROM_24C02_ADDR, &addr, 1,
-    (uint8_t *)&eepromData, sizeof(eepromData), MS2ST(EEPROM_READ_TIMEOUT_MS));
-  i2cReleaseBus(&I2CD2);
-
-  if (status != RDY_OK) {
-    g_i2cErrorInfo.last_i2c_error = i2cGetErrors(&I2CD2);
-    if (g_i2cErrorInfo.last_i2c_error) {
-      debugLog("E:eeprom-load");
-      g_i2cErrorInfo.i2c_error_counter++;
-    }
-    return 0;
-  }
-
-  if (eepromData.crc32 != crcCRC32((uint32_t *)&eepromData, sizeof(eepromData) / sizeof(uint32_t) - 1)) {
-    /* Fill with default settings. */
-    return eepromSaveSettings();
-  } else {
-    pidSettingsUpdate(eepromData.pidSettings);
-    pwmOutputSettingsUpdate(eepromData.pwmOutput);
-    mixedInputSettingsUpdate(eepromData.mixedInput);
-    inputModeSettingsUpdate(eepromData.modeSettings);
-    sensorSettingsUpdate(eepromData.sensorSettings);
-    cfSettingsUpdate(eepromData.cfSettings);
-    accelBiasUpdate(&g_IMU1, eepromData.accelBias);
-    gyroBiasUpdate(&g_IMU1, eepromData.gyroBias);
-  }
-
-  return 1;
+uint8_t eepromWriteBlock(uint16_t addr, const void *data, size_t dataSize) {
+   while(eepromIsDataLeft()) {
+      chThdSleepMilliseconds(10);
+   }
+   /*uint8_t buff[EEPROM_24C02_SIZE] = {0};
+   eeprom.addr = 0x00;
+   eeprom.data = buff;
+   eeprom.dataSize = EEPROM_24C02_SIZE;
+   uint8_t dump[EEPROM_24C02_SIZE];
+   i2cAcquireBus(&I2CD2);
+   i2cMasterTransmitTimeout(&I2CD2, EEPROM_24C02_ADDR, 0x00, 1, (uint8_t *)dump, EEPROM_24C02_SIZE, MS2ST(20));
+   i2cReleaseBus(&I2CD2);*/
+   eeprom.addr     = (uint8_t)addr;
+   eeprom.data     = (uint8_t *)data;
+   eeprom.dataSize = dataSize;
+   return eepromWriteData(&eeprom);
 }
 
-/**
- * @brief  Starts saving all user defined settings to external EEPROM chip.
- * @return 1 - if write operation is successful;
- *         0 - if write operation fails.
- */
-uint8_t eepromSaveSettings(void) {
-  memcpy((void *)eepromData.pidSettings, (void *)g_pidSettings, sizeof(g_pidSettings));
-  memcpy((void *)eepromData.pwmOutput, (void *)g_pwmOutput, sizeof(g_pwmOutput));
-  memcpy((void *)eepromData.mixedInput, (void *)g_mixedInput, sizeof(g_mixedInput));
-  memcpy((void *)eepromData.modeSettings, (void *)g_modeSettings, sizeof(g_modeSettings));
-  memcpy((void *)eepromData.sensorSettings, (void *)g_sensorSettings, sizeof(g_sensorSettings));
-  memcpy((void *)eepromData.cfSettings, (void *)g_cfSettings, sizeof(g_cfSettings));
-  memcpy((void *)eepromData.accelBias, (void *)g_IMU1.accelBias, sizeof(g_IMU1.accelBias));
-  memcpy((void *)eepromData.gyroBias, (void *)g_IMU1.gyroBias, sizeof(g_IMU1.gyroBias));
-  eepromData.crc32 = crcCRC32((uint32_t *)&eepromData, sizeof(eepromData) / sizeof(uint32_t) - 1);
+uint8_t eepromReadBlock(void *data, uint16_t addr, size_t dataSize) {
+   while(eepromIsDataLeft()) { //don't read if we haven't finished writing
+        chThdSleepMilliseconds(10);
+     }
+   msg_t status = RDY_OK;
+   uint8_t address = (uint8_t)addr;
+   i2cAcquireBus(&I2CD2);
+   status = i2cMasterTransmitTimeout(&I2CD2, EEPROM_24C02_ADDR, &address, 1, (uint8_t *)data, dataSize, MS2ST(EEPROM_READ_TIMEOUT_MS));
+   i2cReleaseBus(&I2CD2);
 
-  eeprom.addr     = EEPROM_START_ADDR;
-  eeprom.data     = (uint8_t *)&eepromData;
-  eeprom.dataSize = sizeof(eepromData);
-
-  return eepromWriteData(&eeprom);
+   if (status != RDY_OK) {
+      g_i2cErrorInfo.last_i2c_error = i2cGetErrors(&I2CD2);
+      if (g_i2cErrorInfo.last_i2c_error) {
+        debugLog("E:eeprom-load");
+        g_i2cErrorInfo.i2c_error_counter++;
+      }
+      return 0;
+    }
+   return 1;
 }
 
 /**

@@ -22,6 +22,7 @@
 /* C libraries: */
 #include <math.h>
 #include <string.h>
+#include <AP_Param.h>
 
 /**
  * DeadTime range (us) = (0..127) * 1 / 72;
@@ -108,44 +109,92 @@ static void icuwidthcb(ICUDriver *icup, icuchannel_t channel);
 /* Callback function for ICU period calculation. */
 static void icuperiodcb(ICUDriver *icup, icuchannel_t channel);
 
-/**
- * Default settings for PWM outputs.
- */
-PWMOutputStruct g_pwmOutput[3] = {
-  {0,                      /* Motor power;     */
-   14,                     /* Number of poles; */
-   0x00,                   /* Flags;           */
-   PWM_OUT_CMD_DISABLED |
-   PWM_OUT_DT5000NS},      /* DTime-Cmd ID;    */
-  {0,                      /* Motor power;     */
-   14,                     /* Number of poles; */
-   0x00,                   /* Flags;           */
-   PWM_OUT_CMD_DISABLED |
-   PWM_OUT_DT5000NS},      /* DTime-Cmd ID;    */
-  {0,                      /* Motor power;     */
-   14,                     /* Number of poles; */
-   0x00,                   /* Flags;           */
-   PWM_OUT_CMD_DISABLED |
-   PWM_OUT_DT5000NS}       /* DTime-Cmd ID;    */
+const AP_Param::GroupInfo PWMOutput::var_info[] PROGMEM = {
+
+   // @Param: MOTOR_PW
+   // @DisplayName: Motor power
+   // @Description: Power of motors
+   // @Units: perecent
+   // @Range: 0 100
+   // @Increment: 1
+   // @User: Advanced
+   AP_GROUPINFO("MOTOR_PW", 0, PWMOutput, power, 0),
+
+   // @Param: MOTOR_NPOL
+   // @DisplayName: Number of motor poles
+   // @Description: Number of motor poles
+   // @Units: poles
+   // @Range: 0 100
+   // @Increment: 1
+   // @User: Advanced
+   AP_GROUPINFO("MOTOR_NPOL", 1, PWMOutput, num_poles, 14),
+
+   // @Param: MOTOR_FLG
+   // @DisplayName: Motor flags bitmask
+   // @Description: Bitmap of motor options like reverse and THI usage
+   // @Values: 0:
+   // @User: Advanced
+   AP_GROUPINFO("MOTOR_FLG", 2, PWMOutput, flags, 0x00),
+
+   // @Param: MOTOR_BIT
+   // @DisplayName: Motor bitmask
+   // @Description: Bitmap of motor options like stabilization axis and deadtime
+   // @Values: 0:
+   // @User: Advanced
+   AP_GROUPINFO("MOTOR_BIT", 3, PWMOutput, dt_cmd_id, PWM_OUT_CMD_DISABLED | PWM_OUT_DT5000NS),
+
+   AP_GROUPEND
+
+};
+
+const AP_Param::GroupInfo MixedInput::var_info[] PROGMEM = {
+
+   // @Param: INPUT_MIN
+   // @DisplayName: Input min value
+   // @Description: Input min value
+   // @Units: pwm
+   // @Range: 900 2200
+   // @Increment: 1
+   // @User: Advanced
+   AP_GROUPINFO("INPUT_MIN", 0, MixedInput, min_val, 1000),
+
+   // @Param: INPUT_MID
+   // @DisplayName: Input middle value
+   // @Description: Input middle value
+   // @Units: pwm
+   // @Range: 900 2200
+   // @Increment: 1
+   // @User: Advanced
+   AP_GROUPINFO("INPUT_MID", 1, MixedInput, mid_val, 1500),
+
+   // @Param: INPUT_MAX
+   // @DisplayName: Input max value
+   // @Description: Input max value
+   // @Units: pwm
+   // @Range: 900 2200
+   // @Increment: 1
+   // @User: Advanced
+   AP_GROUPINFO("INPUT_MAX", 2, MixedInput, max_val, 2000),
+
+   // @Param: INPUT_CHN
+   // @DisplayName: Input channel
+   // @Description: Input channel number
+   // @Values: 0:AUX1 1:AUX2 2:AUX3 3:AUX4 4:AUX5 5:disabled
+   // @User: Advanced
+   AP_GROUPINFO("INPUT_CHN", 3, MixedInput, channel_id, INPUT_CHANNEL_DISABLED),
+
+   AP_GROUPEND
 };
 
 /**
- * Default settings for generic inputs.
+ * Settings for PWM outputs.
  */
-MixedInputStruct g_mixedInput[3] = {
-  {1000,                   /* Min value;      */
-   1500,                   /* Mid value;      */
-   2000,                   /* Max value;      */
-   INPUT_CHANNEL_DISABLED},/* Input channel#; */
-  {1000,                   /* Min value;      */
-   1500,                   /* Mid value;      */
-   2000,                   /* Max value;      */
-   INPUT_CHANNEL_DISABLED},/* Input channel#; */
-  {1000,                   /* Min value;      */
-   1500,                   /* Mid value;      */
-   2000,                   /* Max value;      */
-   INPUT_CHANNEL_DISABLED} /* Input channel#; */
-};
+PWMOutput g_pwmOutput[3];
+
+/**
+ * Settings for generic inputs.
+ */
+MixedInput g_mixedInput[3];
 
 /**
  * Values of the input channels.
@@ -612,7 +661,34 @@ void pwmOutputDisableAll(void) {
  *
  */
 void pwmOutputSettingsUpdate(const PPWMOutputStruct pNewSettings) {
-  memcpy((void *)&g_pwmOutput, (void *)pNewSettings, sizeof(g_pwmOutput));
+   enum ap_var_type var_type;
+   AP_Param *vp;
+   vp = AP_Param::set_param_by_name("PITCH_MOTOR_PW", pNewSettings[0].power, &var_type);
+   vp->save();
+   vp = AP_Param::set_param_by_name("PITCH_MOTOR_NPOL", pNewSettings[0].num_poles, &var_type);
+   vp->save();
+   vp = AP_Param::set_param_by_name("PITCH_MOTOR_FLG", pNewSettings[0].flags, &var_type);
+   vp->save();
+   vp = AP_Param::set_param_by_name("PITCH_MOTOR_BIT", pNewSettings[0].dt_cmd_id, &var_type);
+   vp->save();
+
+   vp = AP_Param::set_param_by_name("ROLL_MOTOR_PW", pNewSettings[1].power, &var_type);
+   vp->save();
+   vp = AP_Param::set_param_by_name("ROLL_MOTOR_NPOL", pNewSettings[1].num_poles, &var_type);
+   vp->save();
+   vp = AP_Param::set_param_by_name("ROLL_MOTOR_FLG", pNewSettings[1].flags, &var_type);
+   vp->save();
+   vp = AP_Param::set_param_by_name("ROLL_MOTOR_BIT", pNewSettings[1].dt_cmd_id, &var_type);
+   vp->save();
+
+   vp = AP_Param::set_param_by_name("YAW_MOTOR_PW", pNewSettings[2].power, &var_type);
+   vp->save();
+   vp = AP_Param::set_param_by_name("YAW_MOTOR_NPOL", pNewSettings[2].num_poles, &var_type);
+   vp->save();
+   vp = AP_Param::set_param_by_name("YAW_MOTOR_FLG", pNewSettings[2].flags, &var_type);
+   vp->save();
+   vp = AP_Param::set_param_by_name("YAW_MOTOR_BIT", pNewSettings[2].dt_cmd_id, &var_type);
+   vp->save();
 }
 
 /**
@@ -649,5 +725,33 @@ void mixedInputStop(void) {
  *
  */
 void mixedInputSettingsUpdate(const PMixedInputStruct pNewSettings) {
-  memcpy((void *)&g_mixedInput, (void *)pNewSettings, sizeof(g_mixedInput));
+   enum ap_var_type var_type;
+   AP_Param *vp;
+   vp = AP_Param::set_param_by_name("PITCH_INPUT_MIN", pNewSettings[0].min_val, &var_type);
+   vp->save();
+   vp = AP_Param::set_param_by_name("PITCH_INPUT_MID", pNewSettings[0].mid_val, &var_type);
+   vp->save();
+   vp = AP_Param::set_param_by_name("PITCH_INPUT_MAX", pNewSettings[0].max_val, &var_type);
+   vp->save();
+   vp = AP_Param::set_param_by_name("PITCH_INPUT_CHN", pNewSettings[0].channel_id, &var_type);
+   vp->save();
+
+   vp = AP_Param::set_param_by_name("ROLL_INPUT_MIN", pNewSettings[1].min_val, &var_type);
+   vp->save();
+   vp = AP_Param::set_param_by_name("ROLL_INPUT_MID", pNewSettings[1].mid_val, &var_type);
+   vp->save();
+   vp = AP_Param::set_param_by_name("ROLL_INPUT_MAX", pNewSettings[1].max_val, &var_type);
+   vp->save();
+   vp = AP_Param::set_param_by_name("ROLL_INPUT_CHN", pNewSettings[1].channel_id, &var_type);
+   vp->save();
+
+   vp = AP_Param::set_param_by_name("YAW_INPUT_MIN", pNewSettings[2].min_val, &var_type);
+   vp->save();
+   vp = AP_Param::set_param_by_name("YAW_INPUT_MID", pNewSettings[2].mid_val, &var_type);
+   vp->save();
+   vp = AP_Param::set_param_by_name("YAW_INPUT_MAX", pNewSettings[2].max_val, &var_type);
+   vp->save();
+   vp = AP_Param::set_param_by_name("YAW_INPUT_CHN", pNewSettings[2].channel_id, &var_type);
+   vp->save();
+
 }
