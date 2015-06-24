@@ -24,6 +24,7 @@
 #include "misc.h"
 #include "telemetry.h"
 #include "eeprom.h"
+#include "mavlink_handler.h"
 
 /* Telemetry operation time out in milliseconds. */
 #define TELEMETRY_SLEEP_MS      20
@@ -210,6 +211,22 @@ static msg_t AttitudeThread(void *arg) {
   return 0;
 }
 
+static WORKING_AREA(waMavlinkHandler, 2048);
+static msg_t MavlinkHandler(void *arg) {
+  (void) arg;
+  while (!chThdShouldTerminate()) {
+    systime_t time;
+    time = chTimeNow();
+
+    handleStream();
+    readMavlinkChannel();
+
+    chThdSleepUntil(time += MS2ST(1000/MAX_STREAM_RATE_HZ));  //Max stream rate
+  }
+  /* This point may be reached if shut down is requested. */
+  return 0;
+}
+
 /**
  * @brief   Application entry point.
  * @details
@@ -218,6 +235,7 @@ int main(void) {
   Thread *tpBlinker  = NULL;
   Thread *tpPoller   = NULL;
   Thread *tpAttitude = NULL;
+  Thread *tpMavlink  = NULL;
 
   /* System initializations.
    * - HAL initialization, this also initializes the configured device drivers
@@ -287,16 +305,20 @@ int main(void) {
     mixedInputStart();
   }
 
+  g_chnp = (BaseChannel *)&SDU1; //Default to USB for GUI
+
   /* Creates the blinker thread. */
   tpBlinker = chThdCreateStatic(waBlinkerThread, sizeof(waBlinkerThread),
     LOWPRIO, BlinkerThread, NULL);
+
+  tpMavlink = chThdCreateStatic(waMavlinkHandler, sizeof(waMavlinkHandler),
+    NORMALPRIO - 1, MavlinkHandler, NULL);
 
   /* Normal main() thread activity. */
   while (g_runMain) {
     if ((g_boardStatus & EEPROM_24C02_DETECTED) && eepromIsDataLeft()) {
       eepromContinueSaving();
     }
-    g_chnp = serusbcfg.usbp->state == USB_ACTIVE ? (BaseChannel *)&SDU1 : (BaseChannel *)&SD4;
     telemetryReadSerialData();
     /* Process data stream if ready. */
     if ((g_chnp == (BaseChannel *)&SDU1) && /* USB only; */

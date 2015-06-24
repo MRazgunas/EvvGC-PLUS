@@ -93,7 +93,8 @@ CSRC = $(PORTSRC) \
        mpu6050.c \
        pwmio.c \
        telemetry.c \
-       usbcfg.c
+       usbcfg.c \
+       mavlink_handler.c
 
 # C++ sources that can be compiled in ARM or THUMB mode depending on the global
 # setting.
@@ -123,7 +124,8 @@ TCPPSRC =
 ASMSRC = $(PORTASM)
 
 INCDIR = $(PORTINC) $(KERNINC) $(TESTINC) \
-         $(HALINC) $(PLATFORMINC) $(BOARDINC)
+         $(HALINC) $(PLATFORMINC) $(BOARDINC) \
+         mavlink/common
 
 #
 # Project, sources and paths

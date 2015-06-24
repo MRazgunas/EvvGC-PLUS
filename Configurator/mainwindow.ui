@@ -1392,6 +1392,11 @@
             <string>Follow</string>
            </property>
           </item>
+          <item>
+           <property name="text">
+            <string>Mavlink</string>
+           </property>
+          </item>
          </widget>
         </item>
         <item row="1" column="4">
@@ -1428,6 +1433,11 @@
           <item>
            <property name="text">
             <string>Follow</string>
+           </property>
+          </item>
+          <item>
+           <property name="text">
+            <string>Mavlink</string>
            </property>
           </item>
          </widget>
@@ -1498,6 +1508,11 @@
           <item>
            <property name="text">
             <string>Follow</string>
+           </property>
+          </item>
+          <item>
+           <property name="text">
+            <string>Mavlink</string>
            </property>
           </item>
          </widget>

@@ -34,7 +34,6 @@
 #include "ch.h"
 #include "hal.h"
 
-#include "mpu6050.h"
 #include "pwmio.h"
 #include "misc.h"
 #include "attitude.h"
@@ -55,6 +54,7 @@
 #define INPUT_MODE_ANGLE          0x00
 #define INPUT_MODE_SPEED          0x01
 #define INPUT_MODE_FOLLOW         0x02
+#define INPUT_MODE_MAVLINK        0x03
 
 /* PID controller structure. */
 typedef struct tagPIDStruct {
@@ -71,6 +71,9 @@ typedef struct tagPIDStruct {
  */
 /* Mechanical offset of the motors. */
 float g_motorOffset[3] = {0.0f, 0.0f, 0.0f};
+
+/* Current angles demanded by MAVLINK in DEG */
+float g_mavAngle[3] = {0.0f, 0.0f, 0.0f};
 
 /**
  * Default PID settings.
@@ -310,7 +313,15 @@ void cameraRotationUpdate(void) {
   for (i = 0; i < 3; i++) {
     speedLimit = ((float)g_modeSettings[i].speed)*DEG2RAD;
 
-    if (g_modeSettings[i].mode_id & INPUT_MODE_FOLLOW) {
+    if (g_modeSettings[i].mode_id & INPUT_MODE_MAVLINK) {
+      coef = g_mavAngle[i]; //mavlink angle in degrees
+      coef = constrain(coef, (float )g_modeSettings[i].min_angle,
+          (float )g_modeSettings[i].max_angle); //Do we need to constrain?
+      coef *= DEG2RAD;
+      /* Convert angle difference to speed: */
+      coef = (coef - camAtti[i]) / INPUT_SIGNAL_ALPHA / FIXED_DT_STEP;
+    }
+    else if (g_modeSettings[i].mode_id & INPUT_MODE_FOLLOW) {
       /* Calculate offset of the gimbal: */
       coef = g_modeSettings[i].offset*DEG2RAD - g_motorOffset[i];
       if (coef > MODE_FOLLOW_DEAD_BAND) {
@@ -416,4 +427,10 @@ void inputModeSettingsUpdate(const PInputModeStruct pNewSettings) {
 void cfSettingsUpdate(const uint16_t *pNewSettings) {
   memcpy((void *)&g_cfSettings, (void *)pNewSettings, sizeof(g_cfSettings));
   cfUpdateSettings();
+}
+
+void setCameraRotation(float x, float y, float z) {
+  g_mavAngle[0] = x;
+  g_mavAngle[1] = y;
+  g_mavAngle[2] = z;
 }

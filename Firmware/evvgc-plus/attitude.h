@@ -17,6 +17,8 @@
 #ifndef _ATTITUDE_H_
 #define _ATTITUDE_H_
 
+#include "mpu6050.h"
+
 typedef struct tagPIDSettings {
   uint8_t P;
   uint8_t I;
@@ -46,6 +48,7 @@ extern "C" {
   void pidSettingsUpdate(const PPIDSettings pNewSettings);
   void inputModeSettingsUpdate(const PInputModeStruct pNewSettings);
   void cfSettingsUpdate(const uint16_t *pNewSettings);
+  void setCameraRotation(float x, float y, float z);
 #ifdef __cplusplus
 }
 #endif
