@@ -45,34 +45,34 @@
 #define BDTR_DTG_MSK16  0x1F
 
 /* DT = 27 * 2 / 72 = 750ns */
-#define PWM_OUT_TIM4_5_DT_US7   0x1B
+#define PWM_OUT_TIM4_5_DT_US7   0x0000001B
 /* DT = 36 * 2 / 72 = 1us */
-#define PWM_OUT_TIM4_5_DT_1US   0x24
+#define PWM_OUT_TIM4_5_DT_1US   0x00000024
 /* DT = 72 * 2 / 72 = 2us */
-#define PWM_OUT_TIM4_5_DT_2US   0x48
+#define PWM_OUT_TIM4_5_DT_2US   0x00000048
 /* DT = 108 * 2 / 72 = 3us */
-#define PWM_OUT_TIM4_5_DT_3US   0x6C
+#define PWM_OUT_TIM4_5_DT_3US   0x0000006C
 /* DT = 144 * 2 / 72 = 4us */
-#define PWM_OUT_TIM4_5_DT_4US   0x90
+#define PWM_OUT_TIM4_5_DT_4US   0x00000090
 /* DT = 180 * 2 / 72 = 5us */
-#define PWM_OUT_TIM4_5_DT_5US   0xB4
+#define PWM_OUT_TIM4_5_DT_5US   0x000000B4
 /* DT = 216 * 2 / 72 = 6us */
-#define PWM_OUT_TIM4_5_DT_6US   0xD8
+#define PWM_OUT_TIM4_5_DT_6US   0x000000D8
 /* DT = 252 * 2 / 72 = 7us */
-#define PWM_OUT_TIM4_5_DT_7US   0xFC
+#define PWM_OUT_TIM4_5_DT_7US   0x000000FC
 
 /**
  * PWM value for the 50 percent of the total power, given:
  * - PWM clock frequency = 72 MHz;
  * - PWM period = 1/18000 s;
  */
-#define PWM_OUT_POWER_50PCT     0x03E8
+#define PWM_OUT_POWER_50PCT     0x000003E8
 /**
  * PWM value for the half percent of the total power, given:
  * - PWM clock frequency = 72 MHz;
  * - PWM period = 1/18000 s;
  */
-#define PWM_OUT_POWER_1PCT2     0x0A
+#define PWM_OUT_POWER_1PCT2     0x0000000A
 
 /**
  * ADC related constants.
@@ -234,7 +234,7 @@ static const ADCConversionGroup adcgrpcfg = {
   NULL,                 /* Error callback function.         */
   /* STM32F1xx dependent part: */
   0,                                      /* CR1.   */
-  0,                                      /* CR2.   */                        
+  0,                                      /* CR2.   */
   ADC_SMPR1_SMP_AN12(ADC_SAMPLE_239P5) |
   ADC_SMPR1_SMP_AN13(ADC_SAMPLE_239P5),   /* SMPR1. */
   0,                                      /* SMPR2. */
@@ -383,7 +383,13 @@ static uint32_t pwmOutputGetBDTRDeadTime(const uint8_t id) {
  * @return none.
  */
 static void pwmOutputDisableRoll(void) {
+  /* Disable update event. */
+  PWMD8.tim->CR1 |= STM32_TIM_CR1_UDIS;
+
   memset((void *)PWMD8.tim->CCR, 0, sizeof(uint32_t) * 3);
+
+  /* Enable update event. */
+  PWMD8.tim->CR1 &= ~STM32_TIM_CR1_UDIS;
 }
 
 /**
@@ -391,7 +397,13 @@ static void pwmOutputDisableRoll(void) {
  * @return none.
  */
 static void pwmOutputDisablePitch(void) {
+  /* Disable update event. */
+  PWMD1.tim->CR1 |= STM32_TIM_CR1_UDIS;
+
   memset((void *)PWMD1.tim->CCR, 0, sizeof(uint32_t) * 3);
+
+  /* Enable update event. */
+  PWMD1.tim->CR1 &= ~STM32_TIM_CR1_UDIS;
 }
 
 /**
@@ -399,10 +411,19 @@ static void pwmOutputDisablePitch(void) {
  * @return none.
  */
 static void pwmOutputDisableYaw(void) {
-  /* Make atomic writing; */
   chSysLock();
+  /* Disable update event. */
+  PWMD5.tim->CR1 |= STM32_TIM_CR1_UDIS;
+  PWMD4.tim->CR1 |= STM32_TIM_CR1_UDIS;
+  chSysUnlock();
+
   memset((void *)PWMD5.tim->CCR, 0, sizeof(uint32_t) * 3);
   memset((void *)PWMD4.tim->CCR, 0, sizeof(uint32_t) * 3);
+
+  chSysLock();
+  /* Enable update event. */
+  PWMD5.tim->CR1 &= ~STM32_TIM_CR1_UDIS;
+  PWMD4.tim->CR1 &= ~STM32_TIM_CR1_UDIS;
   chSysUnlock();
 }
 
@@ -432,6 +453,9 @@ static void pwmOutputCmdTo3PhasePWM(float cmd, uint8_t power, uint8_t thi) {
  *
  */
 static void pwmOutputUpdateRoll(void) {
+  /* Disable update event. */
+  PWMD8.tim->CR1 |= STM32_TIM_CR1_UDIS;
+
   /* Check if motor direction is reversed. */
   if (g_pwmOutput[PWM_OUT_ROLL].flags & PWM_OUT_REV_FLAG) {
     PWMD8.tim->CCR[0] = pwm3PhaseDrv[1];
@@ -441,12 +465,18 @@ static void pwmOutputUpdateRoll(void) {
     PWMD8.tim->CCR[1] = pwm3PhaseDrv[1];
   }
   PWMD8.tim->CCR[2] = pwm3PhaseDrv[2];
+
+  /* Enable update event. */
+  PWMD8.tim->CR1 &= ~STM32_TIM_CR1_UDIS;
 }
 
 /**
  *
  */
 static void pwmOutputUpdatePitch(void) {
+  /* Disable update event. */
+  PWMD1.tim->CR1 |= STM32_TIM_CR1_UDIS;
+
   /* Check if motor direction is reversed. */
   if (g_pwmOutput[PWM_OUT_PITCH].flags & PWM_OUT_REV_FLAG) {
     PWMD1.tim->CCR[0] = pwm3PhaseDrv[1];
@@ -456,37 +486,49 @@ static void pwmOutputUpdatePitch(void) {
     PWMD1.tim->CCR[1] = pwm3PhaseDrv[1];
   }
   PWMD1.tim->CCR[2] = pwm3PhaseDrv[2];
+
+  /* Enable update event. */
+  PWMD1.tim->CR1 &= ~STM32_TIM_CR1_UDIS;
 }
 
 /**
  *
  */
 static void pwmOutputUpdateYaw(void) {
-  uint32_t pwmDrvYaw[6];
-  /* Apply dead-time to Yaw PWM: */
+  chSysLock();
+  /* Disable update event. */
+  PWMD5.tim->CR1 |= STM32_TIM_CR1_UDIS;
+  PWMD4.tim->CR1 |= STM32_TIM_CR1_UDIS;
+  chSysUnlock();
+
+  /**
+   * Update shadow registers.
+   * Apply dead-time to Yaw PWM:
+   */
   /* Check if motor direction is reversed. */
   if (g_pwmOutput[PWM_OUT_YAW].flags & PWM_OUT_REV_FLAG) {
-    pwmDrvYaw[0] = constrainLeft (pwm3PhaseDrv[1], pwmOutTIM4_5_DT) - pwmOutTIM4_5_DT; /* Yaw_B  */
-    pwmDrvYaw[1] = constrainLeft (pwm3PhaseDrv[0], pwmOutTIM4_5_DT) - pwmOutTIM4_5_DT; /* YAW_A  */
-    pwmDrvYaw[3] = constrainRight(pwm3PhaseDrv[1], PWM_OUT_POWER_1PCT2 * 200 -
-      pwmOutTIM4_5_DT - 1) + pwmOutTIM4_5_DT;                                          /* Yaw_BN */
-    pwmDrvYaw[4] = constrainRight(pwm3PhaseDrv[0], PWM_OUT_POWER_1PCT2 * 200 -
-      pwmOutTIM4_5_DT - 1) + pwmOutTIM4_5_DT;                                          /* YAW_AN */
+    PWMD5.tim->CCR[0] = constrainLeft (pwm3PhaseDrv[1], pwmOutTIM4_5_DT) - pwmOutTIM4_5_DT; /* Yaw_B  */
+    PWMD4.tim->CCR[0] = constrainRight(pwm3PhaseDrv[1], PWM_OUT_POWER_1PCT2 * 200 -
+      pwmOutTIM4_5_DT - 1) + pwmOutTIM4_5_DT;                                               /* Yaw_BN */
+    PWMD5.tim->CCR[1] = constrainLeft (pwm3PhaseDrv[0], pwmOutTIM4_5_DT) - pwmOutTIM4_5_DT; /* YAW_A  */
+    PWMD4.tim->CCR[1] = constrainRight(pwm3PhaseDrv[0], PWM_OUT_POWER_1PCT2 * 200 -
+      pwmOutTIM4_5_DT - 1) + pwmOutTIM4_5_DT;                                               /* YAW_AN */
   } else {
-    pwmDrvYaw[0] = constrainLeft (pwm3PhaseDrv[0], pwmOutTIM4_5_DT) - pwmOutTIM4_5_DT; /* Yaw_A  */
-    pwmDrvYaw[1] = constrainLeft (pwm3PhaseDrv[1], pwmOutTIM4_5_DT) - pwmOutTIM4_5_DT; /* YAW_B  */
-    pwmDrvYaw[3] = constrainRight(pwm3PhaseDrv[0], PWM_OUT_POWER_1PCT2 * 200 -
-      pwmOutTIM4_5_DT - 1) + pwmOutTIM4_5_DT;                                          /* Yaw_AN */
-    pwmDrvYaw[4] = constrainRight(pwm3PhaseDrv[1], PWM_OUT_POWER_1PCT2 * 200 -
-      pwmOutTIM4_5_DT - 1) + pwmOutTIM4_5_DT;                                          /* YAW_BN */
+    PWMD5.tim->CCR[0] = constrainLeft (pwm3PhaseDrv[0], pwmOutTIM4_5_DT) - pwmOutTIM4_5_DT; /* Yaw_A  */
+    PWMD4.tim->CCR[0] = constrainRight(pwm3PhaseDrv[0], PWM_OUT_POWER_1PCT2 * 200 -
+      pwmOutTIM4_5_DT - 1) + pwmOutTIM4_5_DT;                                               /* Yaw_AN */
+    PWMD5.tim->CCR[1] = constrainLeft (pwm3PhaseDrv[1], pwmOutTIM4_5_DT) - pwmOutTIM4_5_DT; /* YAW_B  */
+    PWMD4.tim->CCR[1] = constrainRight(pwm3PhaseDrv[1], PWM_OUT_POWER_1PCT2 * 200 -
+      pwmOutTIM4_5_DT - 1) + pwmOutTIM4_5_DT;                                               /* YAW_BN */
   }
-  pwmDrvYaw[2] = constrainLeft (pwm3PhaseDrv[2], pwmOutTIM4_5_DT) - pwmOutTIM4_5_DT;   /* YAW_C  */
-  pwmDrvYaw[5] = constrainRight(pwm3PhaseDrv[2], PWM_OUT_POWER_1PCT2 * 200 -
-    pwmOutTIM4_5_DT - 1) + pwmOutTIM4_5_DT;                                            /* YAW_CN */
-  /* Make atomic writing; */
+  PWMD5.tim->CCR[2] = constrainLeft (pwm3PhaseDrv[2], pwmOutTIM4_5_DT) - pwmOutTIM4_5_DT;   /* YAW_C  */
+  PWMD4.tim->CCR[2] = constrainRight(pwm3PhaseDrv[2], PWM_OUT_POWER_1PCT2 * 200 -
+    pwmOutTIM4_5_DT - 1) + pwmOutTIM4_5_DT;                                                 /* YAW_CN */
+
   chSysLock();
-  memcpy((void *)PWMD5.tim->CCR, (void *)&pwmDrvYaw[0], sizeof(pwmDrvYaw) / 2);
-  memcpy((void *)PWMD4.tim->CCR, (void *)&pwmDrvYaw[3], sizeof(pwmDrvYaw) / 2);
+  /* Enable update event. */
+  PWMD5.tim->CR1 &= ~STM32_TIM_CR1_UDIS;
+  PWMD4.tim->CR1 &= ~STM32_TIM_CR1_UDIS;
   chSysUnlock();
 }
 
@@ -512,6 +554,8 @@ void pwmOutputStart(void) {
   bdtr_dt = pwmOutputGetBDTRDeadTime(g_pwmOutput[PWM_OUT_PITCH].dt_cmd_id & PWM_OUT_DT_ID_MASK);
   pwmcfg_d1_d8.bdtr |= bdtr_dt;
 #endif
+  /* Configure TIM8 as master timer: */
+  pwmcfg_d1_d8.cr2 = STM32_TIM_CR2_MMS(1); // Master mode set to Enable;
   pwmStart(&PWMD8, &pwmcfg_d1_d8);
 
   switch (g_pwmOutput[PWM_OUT_YAW].dt_cmd_id & PWM_OUT_DT_ID_MASK) {
@@ -539,11 +583,21 @@ void pwmOutputStart(void) {
   pwmStart(&PWMD4, &pwmcfg_d4);
   pwmStart(&PWMD5, &pwmcfg_d5);
 
+  /* Configure TIM5 as slave timer: */
+  PWMD5.tim->SMCR =
+    STM32_TIM_SMCR_SMS(6) | // Trigger Mode;
+    STM32_TIM_SMCR_TS(3);   // Trigger event comes from TIM8;
+
+  /* Configure TIM4 as slave timer: */
+  PWMD4.tim->SMCR =
+    STM32_TIM_SMCR_SMS(6) | // Trigger Mode;
+    STM32_TIM_SMCR_TS(3);   // Trigger event comes from TIM8;
+
   /* Switch to center-aligned mode 1 and start timers. */
+  PWMD5.tim->CR1 |= (STM32_TIM_CR1_CMS(1)); // This is a slave timer - do not start;
+  PWMD4.tim->CR1 |= (STM32_TIM_CR1_CMS(1)); // This is a slave timer - do not start;
   PWMD1.tim->CR1 |= (STM32_TIM_CR1_CMS(1) | STM32_TIM_CR1_CEN);
-  PWMD8.tim->CR1 |= (STM32_TIM_CR1_CMS(1) | STM32_TIM_CR1_CEN);
-  PWMD4.tim->CR1 |= (STM32_TIM_CR1_CMS(1) | STM32_TIM_CR1_CEN);
-  PWMD5.tim->CR1 |= (STM32_TIM_CR1_CMS(1) | STM32_TIM_CR1_CEN);
+  PWMD8.tim->CR1 |= (STM32_TIM_CR1_CMS(1) | STM32_TIM_CR1_CEN); // Start TIM8, TIM4 and TIM5 simultaneously;
 }
 
 /**
